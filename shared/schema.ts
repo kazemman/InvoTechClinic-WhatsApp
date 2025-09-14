@@ -8,6 +8,7 @@ export const userRoleEnum = pgEnum("user_role", ["staff", "admin", "doctor"]);
 export const appointmentStatusEnum = pgEnum("appointment_status", ["scheduled", "confirmed", "in_progress", "completed", "cancelled"]);
 export const queueStatusEnum = pgEnum("queue_status", ["waiting", "in_progress", "completed"]);
 export const paymentMethodEnum = pgEnum("payment_method", ["cash", "medical_aid", "both"]);
+export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -26,6 +27,8 @@ export const patients = pgTable("patients", {
   email: text("email"),
   phone: text("phone").notNull(),
   dateOfBirth: timestamp("date_of_birth").notNull(),
+  gender: genderEnum("gender").notNull(),
+  idNumber: text("id_number").notNull().unique(),
   address: text("address"),
   medicalAidScheme: text("medical_aid_scheme"),
   medicalAidNumber: text("medical_aid_number"),

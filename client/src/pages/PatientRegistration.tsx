@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { insertPatientSchema, type InsertPatient } from '@shared/schema';
+import { z } from 'zod';
 import { apiRequest } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,20 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Search, Upload, UserPlus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, Upload, UserPlus, Eye } from 'lucide-react';
+
+// Extended validation schema for the form
+const patientFormSchema = insertPatientSchema.extend({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  phone: z.string().min(7, 'Phone number must be at least 7 characters'),
+  idNumber: z.string().min(1, 'ID/Passport number is required'),
+  dateOfBirth: z.date().refine(
+    (date) => date <= new Date(),
+    'Date of birth cannot be in the future'
+  ),
+});
 
 export default function PatientRegistration() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,13 +35,15 @@ export default function PatientRegistration() {
   const queryClient = useQueryClient();
 
   const form = useForm<InsertPatient>({
-    resolver: zodResolver(insertPatientSchema),
+    resolver: zodResolver(patientFormSchema),
     defaultValues: {
       firstName: '',
       lastName: '',
       email: '',
       phone: '',
       dateOfBirth: new Date(),
+      gender: 'male' as const,
+      idNumber: '',
       address: '',
       medicalAidScheme: '',
       medicalAidNumber: '',
@@ -62,21 +78,7 @@ export default function PatientRegistration() {
         formData.append('photo', selectedFile);
       }
 
-      const res = await fetch('/api/patients', {
-        method: 'POST',
-        headers: {
-          ...Object.fromEntries(
-            Object.entries(await apiRequest('GET', '/api/auth/me').then(r => r.headers))
-              .filter(([key]) => key.toLowerCase().includes('authorization'))
-          ),
-        },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to create patient');
-      }
-
+      const res = await apiRequest('POST', '/api/patients', formData);
       return res.json();
     },
     onSuccess: (patient) => {
@@ -89,10 +91,17 @@ export default function PatientRegistration() {
       setPreviewUrl(null);
       queryClient.invalidateQueries({ queryKey: ['/api/patients'] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      let description = error.message;
+      
+      // Handle unique constraint violation for ID number
+      if (error.message?.includes('unique') || error.message?.includes('duplicate')) {
+        description = 'This ID/Passport number is already registered. Please check the number and try again.';
+      }
+      
       toast({
         title: 'Registration Failed',
-        description: error.message,
+        description,
         variant: 'destructive',
       });
     },
@@ -121,6 +130,8 @@ export default function PatientRegistration() {
       email: patient.email || '',
       phone: patient.phone,
       dateOfBirth: new Date(patient.dateOfBirth),
+      gender: patient.gender || 'male',
+      idNumber: patient.idNumber || '',
       address: patient.address || '',
       medicalAidScheme: patient.medicalAidScheme || '',
       medicalAidNumber: patient.medicalAidNumber || '',
@@ -219,14 +230,27 @@ export default function PatientRegistration() {
                   </Avatar>
                 </div>
                 <div>
-                  <label htmlFor="photo-upload" className="cursor-pointer">
-                    <Button variant="outline" asChild>
-                      <span>
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload Photo
-                      </span>
-                    </Button>
-                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <label htmlFor="photo-upload" className="cursor-pointer">
+                      <Button variant="outline" asChild>
+                        <span>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload ID/Passport
+                        </span>
+                      </Button>
+                    </label>
+                    {previewUrl && (
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => window.open(previewUrl, '_blank')}
+                        data-testid="button-view-id"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View ID
+                      </Button>
+                    )}
+                  </div>
                   <input
                     id="photo-upload"
                     type="file"
@@ -235,8 +259,8 @@ export default function PatientRegistration() {
                     className="hidden"
                     data-testid="input-patient-photo"
                   />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Upload patient photo for easy identification
+                  <p className="text-sm text-muted-foreground">
+                    ID/passport photo
                   </p>
                 </div>
               </div>
@@ -278,7 +302,7 @@ export default function PatientRegistration() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input {...field} type="email" data-testid="input-email" />
+                        <Input {...field} type="email" value={field.value || ''} data-testid="input-email" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -318,6 +342,43 @@ export default function PatientRegistration() {
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gender *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-gender">
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="idNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ID/Passport Number *</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} data-testid="input-id-number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
               <FormField
@@ -327,7 +388,7 @@ export default function PatientRegistration() {
                   <FormItem>
                     <FormLabel>Address</FormLabel>
                     <FormControl>
-                      <Textarea {...field} data-testid="input-address" />
+                      <Textarea {...field} value={field.value || ''} data-testid="input-address" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -345,7 +406,7 @@ export default function PatientRegistration() {
                       <FormItem>
                         <FormLabel>Medical Aid Scheme</FormLabel>
                         <FormControl>
-                          <Input {...field} data-testid="input-medical-aid-scheme" />
+                          <Input {...field} value={field.value || ''} data-testid="input-medical-aid-scheme" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -359,7 +420,7 @@ export default function PatientRegistration() {
                       <FormItem>
                         <FormLabel>Medical Aid Number</FormLabel>
                         <FormControl>
-                          <Input {...field} data-testid="input-medical-aid-number" />
+                          <Input {...field} value={field.value || ''} data-testid="input-medical-aid-number" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

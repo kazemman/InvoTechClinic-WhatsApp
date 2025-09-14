@@ -263,7 +263,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/patients', authenticateToken, upload.single('photo'), async (req: AuthenticatedRequest, res) => {
     try {
-      const patientData = insertPatientSchema.parse(req.body);
+      // Transform FormData fields for proper parsing
+      const bodyData = { ...req.body };
+      if (bodyData.dateOfBirth && typeof bodyData.dateOfBirth === 'string') {
+        bodyData.dateOfBirth = new Date(bodyData.dateOfBirth);
+      }
+      
+      const patientData = insertPatientSchema.parse(bodyData);
       
       if (req.file) {
         patientData.photoUrl = `/uploads/patient-photos/${req.file.filename}`;
@@ -281,7 +287,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.status(201).json(patient);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Patient creation error:', error);
+      
+      // Handle specific database errors
+      if (error.code === '23505' || error.message?.includes('unique')) {
+        return res.status(409).json({ 
+          message: 'This ID/Passport number is already registered. Please check the number and try again.' 
+        });
+      }
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid patient data provided.',
+          errors: error.errors 
+        });
+      }
+      
       res.status(400).json({ message: 'Failed to create patient' });
     }
   });
