@@ -1,0 +1,42 @@
+I  need to create a Clinic Management App for a company called InvoTech:
+I will need  you to create 8 pages plus a Dashboard:
+Dashboard:
+Show who is on the queue and shortcuts to other pages:
+      Patient Registration:
+•	Patient Registration: Complete patient profiles with personal details, contact info, and medical aid information
+•	Patient Photos: Upload and store patient photos for easy identification
+•	Patient Search: Quick search to find any patient instantly
+•	Medical Aid Tracking: Store and manage medical aid scheme details
+Appointment:
+•	Smart Booking: Schedule appointments with automatic conflict prevention
+•	Doctor Assignment: Assign specific doctors to appointments
+•	Time Slot Management: Prevent double-booking with real-time availability checking
+•	Appointment Status Tracking: Automatic workflow from scheduled → confirmed → completed
+Check-in:
+•	Quick Check-in: Fast patient check-in process with appointment linking
+•	Payment Method Tracking: Record whether patients pay cash, medical aid, or both
+•	Walk-in Support: Handle patients without appointments
+•	Automatic Status Updates: Check-ins automatically confirm scheduled appointments
+Queue Management:
+•	Real-time Queue: Live view of all checked-in patients waiting to be seen
+•	Wait Time Tracking: Monitor how long patients have been waiting
+•	Queue Updates: Automatic removal when consultations are completed
+Doctor’s Page:
+•	Store comprehensive patient-related data—forms, images, referral letters, scripts, attachments.
+•	I need the doctor page to be able to view all the patients in the queue.
+•	I also need it to be able to search for patients and pull up.
+•	I also need the doctor to add notes and past prescriptions.
+
+Business Insight:
+•	Revenue Tracking: Real-time revenue reports with payment method breakdowns
+•	Visit Statistics: Track total visits, appointments vs walk-ins
+•	Performance Metrics: Monitor clinic efficiency and patient flow
+User Management:
+•	As a system admin you should be able to create 3 roles: doctor, staff, doctor.
+•	You should be able to view all users and edit their role or delete it.
+•	When creating a role you should register the name and last-name email.
+•	You should be able to send an email to the user and send a link to create an account. So they can create their account with the email on the app.
+System Admin:
+I want the system admin page to be able to view all users that took action.
+I need my app to be Mobile-Responsive Design Touch-Friendly Interface: Optimized for phones and tablets, Collapsible Navigation: Desktop sidebar that can be toggled for more screen space and Cross-Device Compatibility: Works seamlessly on any device size.
+I need help implementing a secure role-based authentication system for my existing clinic management app. The system should have the following requirements: **AUTHENTICATION REQUIREMENTS:** 1. Three user roles: 'staff', 'admin', and 'doctor' 2. Single login form that does NOT remember or auto-fill previous emails 3. Role determination happens server-side from database lookup 4. After login, users are automatically redirected to their role-specific dashboard 5. Use JWT tokens for session management 6. Clear all browser storage/cache on logout to prevent email auto-fill **DATABASE STRUCTURE:** - I need a users table with: id, email, password_hash, name, role, is_active, created_at - Role should be an ENUM with values: 'staff', 'admin', 'doctor'. I also need the “Forgot your password?” reset option.
