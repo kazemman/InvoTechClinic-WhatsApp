@@ -120,7 +120,7 @@ export class DatabaseStorage implements IStorage {
 
   async searchPatients(query: string): Promise<Patient[]> {
     return await db.select().from(patients)
-      .where(sql`lower(${patients.firstName}) LIKE lower(${`%${query}%`}) OR lower(${patients.lastName}) LIKE lower(${`%${query}%`}) OR ${patients.phone} LIKE ${`%${query}%`}`)
+      .where(sql`lower(${patients.firstName}) LIKE lower(${`%${query}%`}) OR lower(${patients.lastName}) LIKE lower(${`%${query}%`}) OR ${patients.phone} LIKE ${`%${query}%`} OR lower(${patients.idNumber}) LIKE lower(${`%${query}%`})`)
       .orderBy(patients.firstName, patients.lastName);
   }
 

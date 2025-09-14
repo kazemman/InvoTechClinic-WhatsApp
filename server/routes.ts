@@ -601,7 +601,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Serve uploaded files
-  app.use('/uploads', express.static('uploads'));
+  // Static file serving for uploads with proper headers for inline viewing
+  app.use('/uploads', express.static('uploads', {
+    setHeaders: (res, path) => {
+      if (path.includes('patient-photos')) {
+        res.setHeader('Content-Disposition', 'inline');
+        res.setHeader('Content-Type', 'image/jpeg');
+      }
+    }
+  }));
 
   return httpServer;
 }
