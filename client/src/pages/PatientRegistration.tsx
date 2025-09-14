@@ -91,9 +91,15 @@ export default function PatientRegistration() {
         description: `${patient.firstName} ${patient.lastName} has been successfully ${isEditMode ? 'updated' : 'registered'}.`,
       });
       resetForm();
-      // Invalidate both patients list and search results
+      // Invalidate all patient-related queries
       queryClient.invalidateQueries({ queryKey: ['/api/patients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/patients/search'] });
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === '/api/patients/search' });
+      
+      // Force refetch search results if there's an active search
+      if (searchQuery.length > 2) {
+        queryClient.refetchQueries({ queryKey: ['/api/patients/search', searchQuery] });
+      }
     },
     onError: (error: any) => {
       let description = error.message;
