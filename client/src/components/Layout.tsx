@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Sidebar from './Sidebar';
+import Sidebar from '@/components/Sidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface LayoutProps {

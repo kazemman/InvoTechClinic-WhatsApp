@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { apiRequest } from '@/lib/auth';
@@ -49,7 +50,7 @@ export default function Dashboard() {
   });
 
   // Refresh data when queue updates
-  React.useEffect(() => {
+  useEffect(() => {
     if (lastMessage?.type === 'queue_update') {
       refetchQueue();
       refetchStats();
