@@ -31,6 +31,8 @@ export default function PatientRegistration() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [editingPatient, setEditingPatient] = useState<any | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -78,17 +80,17 @@ export default function PatientRegistration() {
         formData.append('photo', selectedFile);
       }
 
-      const res = await apiRequest('POST', '/api/patients', formData);
+      const endpoint = isEditMode ? `/api/patients/${editingPatient.id}` : '/api/patients';
+      const method = isEditMode ? 'PUT' : 'POST';
+      const res = await apiRequest(method, endpoint, formData);
       return res.json();
     },
     onSuccess: (patient) => {
       toast({
-        title: 'Patient Registered',
-        description: `${patient.firstName} ${patient.lastName} has been successfully registered.`,
+        title: isEditMode ? 'Patient Updated' : 'Patient Registered',
+        description: `${patient.firstName} ${patient.lastName} has been successfully ${isEditMode ? 'updated' : 'registered'}.`,
       });
-      form.reset();
-      setSelectedFile(null);
-      setPreviewUrl(null);
+      resetForm();
       queryClient.invalidateQueries({ queryKey: ['/api/patients'] });
     },
     onError: (error: any) => {
@@ -100,7 +102,7 @@ export default function PatientRegistration() {
       }
       
       toast({
-        title: 'Registration Failed',
+        title: isEditMode ? 'Update Failed' : 'Registration Failed',
         description,
         variant: 'destructive',
       });
@@ -119,28 +121,58 @@ export default function PatientRegistration() {
     }
   };
 
-  const onSubmit = (data: InsertPatient) => {
-    createPatientMutation.mutate(data);
-  };
-
   const loadPatientData = (patient: any) => {
+    setEditingPatient(patient);
+    setIsEditMode(true);
+    
+    // Populate the form with patient data
     form.reset({
-      firstName: patient.firstName,
-      lastName: patient.lastName,
+      firstName: patient.firstName || '',
+      lastName: patient.lastName || '',
       email: patient.email || '',
-      phone: patient.phone,
-      dateOfBirth: new Date(patient.dateOfBirth),
+      phone: patient.phone || '',
+      dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth) : new Date(),
       gender: patient.gender || 'male',
       idNumber: patient.idNumber || '',
       address: patient.address || '',
       medicalAidScheme: patient.medicalAidScheme || '',
       medicalAidNumber: patient.medicalAidNumber || '',
     });
-    setSearchQuery('');
+    
+    // Set preview URL if patient has a photo
     if (patient.photoUrl) {
       setPreviewUrl(patient.photoUrl);
     }
+    
+    // Scroll to form
+    setTimeout(() => {
+      document.querySelector('#patient-form')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
+  
+  const resetForm = () => {
+    form.reset({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      dateOfBirth: new Date(),
+      gender: 'male' as const,
+      idNumber: '',
+      address: '',
+      medicalAidScheme: '',
+      medicalAidNumber: '',
+    });
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setEditingPatient(null);
+    setIsEditMode(false);
+  };
+
+  const onSubmit = (data: InsertPatient) => {
+    createPatientMutation.mutate(data);
+  };
+
 
   return (
     <div className="space-y-6">
@@ -210,13 +242,29 @@ export default function PatientRegistration() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserPlus className="w-5 h-5" />
-            Patient Information
+            {isEditMode ? 'Edit Patient Information' : 'Patient Information'}
           </CardTitle>
           <CardDescription>
-            Complete patient profiles with personal details and medical aid information
+            {isEditMode ? `Update information for ${editingPatient?.firstName} ${editingPatient?.lastName}` : 'Complete patient profiles with personal details and medical aid information'}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {isEditMode && (
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>Editing:</strong> {editingPatient.firstName} {editingPatient.lastName}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetForm}
+                  className="ml-2 h-auto p-1 text-blue-600 hover:text-blue-800"
+                >
+                  Cancel Edit
+                </Button>
+              </p>
+            </div>
+          )}
+          <div id="patient-form">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               {/* Photo Upload */}
@@ -437,10 +485,14 @@ export default function PatientRegistration() {
                 disabled={createPatientMutation.isPending}
                 data-testid="button-register-patient"
               >
-                {createPatientMutation.isPending ? 'Registering...' : 'Register Patient'}
+{isEditMode 
+                  ? (createPatientMutation.isPending ? 'Updating...' : 'Update Patient')
+                  : (createPatientMutation.isPending ? 'Registering...' : 'Register Patient')
+                }
               </Button>
             </form>
           </Form>
+          </div>
         </CardContent>
       </Card>
     </div>
