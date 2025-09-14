@@ -312,7 +312,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/patients/:id', authenticateToken, upload.single('photo'), async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
-      const patientData = req.body;
+      
+      // Transform FormData fields for proper parsing (same as POST route)
+      const bodyData = { ...req.body };
+      if (bodyData.dateOfBirth && typeof bodyData.dateOfBirth === 'string') {
+        bodyData.dateOfBirth = new Date(bodyData.dateOfBirth);
+      }
+      
+      // Use a partial schema for updates (don't require all fields)
+      const updateSchema = insertPatientSchema.partial();
+      const patientData = updateSchema.parse(bodyData);
       
       if (req.file) {
         patientData.photoUrl = `/uploads/patient-photos/${req.file.filename}`;
@@ -330,7 +339,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(patient);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Patient update error:', error);
+      
+      // Handle specific database errors
+      if (error.code === '23505' || error.message?.includes('unique')) {
+        return res.status(409).json({ 
+          message: 'This ID/Passport number is already registered. Please check the number and try again.' 
+        });
+      }
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid patient data provided.',
+          errors: error.errors 
+        });
+      }
+      
       res.status(400).json({ message: 'Failed to update patient' });
     }
   });
