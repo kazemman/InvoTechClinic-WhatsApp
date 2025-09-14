@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(210, 40%, 98%);
+  --foreground: hsl(222.2, 84%, 4.9%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(222.2, 84%, 4.9%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(222.2, 84%, 4.9%);
+  --primary: hsl(214, 84%, 56%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(188, 78%, 41%);
+  --secondary-foreground: hsl(222.2, 84%, 4.9%);
+  --muted: hsl(210, 40%, 96%);
+  --muted-foreground: hsl(215.4, 16.3%, 46.9%);
+  --accent: hsl(142, 69%, 58%);
+  --accent-foreground: hsl(222.2, 84%, 4.9%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --border: hsl(214.3, 31.8%, 91.4%);
+  --input: hsl(214.3, 31.8%, 91.4%);
+  --ring: hsl(214, 84%, 56%);
+  --sidebar: hsl(0, 0%, 100%);
+  --sidebar-foreground: hsl(222.2, 84%, 4.9%);
+  --sidebar-primary: hsl(214, 84%, 56%);
+  --sidebar-primary-foreground: hsl(210, 40%, 98%);
+  --sidebar-accent: hsl(214.3, 31.8%, 91.4%);
+  --sidebar-accent-foreground: hsl(214, 84%, 56%);
+  --sidebar-border: hsl(214.3, 31.8%, 91.4%);
+  --sidebar-ring: hsl(214, 84%, 56%);
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 8px;
+  --shadow-2xs: 0px 2px 0px 0px hsl(214, 84%, 56%, 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(214, 84%, 56%, 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(214, 84%, 56%, 0.00), 0px 1px 2px -1px hsl(214, 84%, 56%, 0.00);
+  --shadow: 0px 2px 0px 0px hsl(214, 84%, 56%, 0.00), 0px 1px 2px -1px hsl(214, 84%, 56%, 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(214, 84%, 56%, 0.00), 0px 2px 4px -1px hsl(214, 84%, 56%, 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(214, 84%, 56%, 0.00), 0px 4px 6px -1px hsl(214, 84%, 56%, 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(214, 84%, 56%, 0.00), 0px 8px 10px -1px hsl(214, 84%, 56%, 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(214, 84%, 56%, 0.00);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: hsl(0, 0%, 0%);
+  --foreground: hsl(200, 6.6667%, 91.1765%);
+  --card: hsl(228, 9.8039%, 10%);
+  --card-foreground: hsl(0, 0%, 85.0980%);
+  --popover: hsl(0, 0%, 0%);
+  --popover-foreground: hsl(200, 6.6667%, 91.1765%);
+  --primary: hsl(214, 84%, 56%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(188, 78%, 41%);
+  --secondary-foreground: hsl(210, 25%, 7.8431%);
+  --muted: hsl(0, 0%, 9.4118%);
+  --muted-foreground: hsl(210, 3.3898%, 46.2745%);
+  --accent: hsl(142, 69%, 58%);
+  --accent-foreground: hsl(222.2, 84%, 4.9%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --border: hsl(210, 5.2632%, 14.9020%);
+  --input: hsl(207.6923, 27.6596%, 18.4314%);
+  --ring: hsl(214, 84%, 56%);
+  --sidebar: hsl(228, 9.8039%, 10%);
+  --sidebar-foreground: hsl(0, 0%, 85.0980%);
+  --sidebar-primary: hsl(214, 84%, 56%);
+  --sidebar-primary-foreground: hsl(210, 40%, 98%);
+  --sidebar-accent: hsl(210, 5.2632%, 14.9020%);
+  --sidebar-accent-foreground: hsl(214, 84%, 56%);
+  --sidebar-border: hsl(210, 5.2632%, 14.9020%);
+  --sidebar-ring: hsl(214, 84%, 56%);
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 8px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+.sidebar-transition {
+  transition: transform 0.3s ease-in-out;
+}
+
+.badge-waiting {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800;
+}
+
+.badge-in-progress {
+  @apply bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800;
+}
+
+.badge-completed {
+  @apply bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800;
+}
+
+.badge-urgent {
+  @apply bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800;
+}
+
+@media (max-width: 768px) {
+  .sidebar-mobile {
+    transform: translateX(-100%);
+  }
+  .sidebar-mobile.open {
+    transform: translateX(0);
+  }
+}

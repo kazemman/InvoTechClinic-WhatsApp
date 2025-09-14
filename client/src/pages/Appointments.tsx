@@ -1,0 +1,369 @@
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { insertAppointmentSchema, type InsertAppointment } from '@shared/schema';
+import { apiRequest } from '@/lib/auth';
+import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock, User, CalendarPlus } from 'lucide-react';
+
+export default function Appointments() {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const form = useForm<InsertAppointment>({
+    resolver: zodResolver(insertAppointmentSchema),
+    defaultValues: {
+      patientId: '',
+      doctorId: '',
+      appointmentDate: new Date(),
+      appointmentType: '',
+      notes: '',
+    },
+  });
+
+  const { data: appointments } = useQuery({
+    queryKey: ['/api/appointments', selectedDate],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/appointments?date=${selectedDate}`);
+      return res.json();
+    },
+  });
+
+  const { data: patients } = useQuery({
+    queryKey: ['/api/patients'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/patients');
+      return res.json();
+    },
+  });
+
+  const { data: doctors } = useQuery({
+    queryKey: ['/api/users'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/users');
+      const users = await res.json();
+      return users.filter((user: any) => user.role === 'doctor');
+    },
+  });
+
+  const createAppointmentMutation = useMutation({
+    mutationFn: async (data: InsertAppointment) => {
+      const res = await apiRequest('POST', '/api/appointments', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Appointment Scheduled',
+        description: 'The appointment has been successfully scheduled.',
+      });
+      form.reset();
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Scheduling Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const updateAppointmentMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & Partial<InsertAppointment>) => {
+      const res = await apiRequest('PUT', `/api/appointments/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Appointment Updated',
+        description: 'The appointment has been successfully updated.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Update Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const onSubmit = (data: InsertAppointment) => {
+    createAppointmentMutation.mutate(data);
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'scheduled': return 'badge-waiting';
+      case 'confirmed': return 'badge-in-progress';
+      case 'in_progress': return 'badge-in-progress';
+      case 'completed': return 'badge-completed';
+      case 'cancelled': return 'badge-urgent';
+      default: return 'badge-waiting';
+    }
+  };
+
+  const updateAppointmentStatus = (id: string, status: string) => {
+    updateAppointmentMutation.mutate({ id, status });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Appointments</h1>
+          <p className="text-muted-foreground">Schedule and manage patient appointments</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Appointment Form */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarPlus className="w-5 h-5" />
+              Schedule Appointment
+            </CardTitle>
+            <CardDescription>
+              Book new appointments with automatic conflict prevention
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="patientId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Patient *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-patient">
+                            <SelectValue placeholder="Select patient" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {patients?.map((patient: any) => (
+                            <SelectItem key={patient.id} value={patient.id}>
+                              {patient.firstName} {patient.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="doctorId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Doctor *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-doctor">
+                            <SelectValue placeholder="Select doctor" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {doctors?.map((doctor: any) => (
+                            <SelectItem key={doctor.id} value={doctor.id}>
+                              {doctor.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="appointmentDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date & Time *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="datetime-local"
+                          value={field.value instanceof Date ? 
+                            field.value.toISOString().slice(0, 16) : ''}
+                          onChange={(e) => field.onChange(new Date(e.target.value))}
+                          data-testid="input-appointment-datetime"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="appointmentType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Appointment Type *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-appointment-type">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="General Checkup">General Checkup</SelectItem>
+                          <SelectItem value="Follow-up">Follow-up</SelectItem>
+                          <SelectItem value="Consultation">Consultation</SelectItem>
+                          <SelectItem value="Annual Physical">Annual Physical</SelectItem>
+                          <SelectItem value="Pediatric Consultation">Pediatric Consultation</SelectItem>
+                          <SelectItem value="Specialist Referral">Specialist Referral</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          {...field} 
+                          placeholder="Additional notes..."
+                          data-testid="input-appointment-notes"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={createAppointmentMutation.isPending}
+                  data-testid="button-schedule-appointment"
+                >
+                  {createAppointmentMutation.isPending ? 'Scheduling...' : 'Schedule Appointment'}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+
+        {/* Appointments List */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Appointments Schedule
+              </CardTitle>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-auto"
+                data-testid="input-date-filter"
+              />
+            </div>
+            <CardDescription>
+              Manage and track appointment status
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {appointments && appointments.length > 0 ? (
+                appointments.map((appointment: any) => (
+                  <div key={appointment.id} className="border rounded-lg p-4 hover:bg-muted/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="text-center min-w-[60px]">
+                          <div className="text-lg font-bold text-foreground">
+                            {new Date(appointment.appointmentDate).toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <User className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium" data-testid={`text-patient-${appointment.id}`}>
+                              {appointment.patient?.firstName} {appointment.patient?.lastName}
+                            </span>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {appointment.appointmentType} • Dr. {appointment.doctor?.name}
+                          </div>
+                          {appointment.notes && (
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {appointment.notes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(appointment.status)}`}
+                          data-testid={`badge-status-${appointment.id}`}
+                        >
+                          {appointment.status.replace('_', ' ')}
+                        </Badge>
+                        <div className="flex gap-1">
+                          {appointment.status === 'scheduled' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
+                              data-testid={`button-confirm-${appointment.id}`}
+                            >
+                              Confirm
+                            </Button>
+                          )}
+                          {(appointment.status === 'confirmed' || appointment.status === 'scheduled') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
+                              data-testid={`button-cancel-${appointment.id}`}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground" data-testid="text-no-appointments">
+                  No appointments scheduled for {new Date(selectedDate).toLocaleDateString()}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
