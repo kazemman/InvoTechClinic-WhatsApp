@@ -327,7 +327,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         patientData.photoUrl = `/uploads/patient-photos/${req.file.filename}`;
       }
 
+      console.log('Updating patient with ID:', id);
+      console.log('Patient data to update:', JSON.stringify(patientData, null, 2));
+      
       const patient = await storage.updatePatient(id, patientData);
+      
+      console.log('Updated patient result:', JSON.stringify(patient, null, 2));
 
       // Log activity
       if (req.user) {
