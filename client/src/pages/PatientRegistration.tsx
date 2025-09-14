@@ -91,7 +91,9 @@ export default function PatientRegistration() {
         description: `${patient.firstName} ${patient.lastName} has been successfully ${isEditMode ? 'updated' : 'registered'}.`,
       });
       resetForm();
+      // Invalidate both patients list and search results
       queryClient.invalidateQueries({ queryKey: ['/api/patients'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/patients/search'] });
     },
     onError: (error: any) => {
       let description = error.message;
