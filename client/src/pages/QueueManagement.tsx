@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function QueueManagement() {
-  const [selectedDoctor, setSelectedDoctor] = useState<string>('');
+  const [selectedDoctor, setSelectedDoctor] = useState<string>('all');
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { lastMessage } = useWebSocket();
@@ -22,7 +22,7 @@ export default function QueueManagement() {
   const { data: queue, refetch: refetchQueue } = useQuery({
     queryKey: ['/api/queue', selectedDoctor],
     queryFn: async () => {
-      const url = selectedDoctor ? `/api/queue?doctorId=${selectedDoctor}` : '/api/queue';
+      const url = selectedDoctor && selectedDoctor !== 'all' ? `/api/queue?doctorId=${selectedDoctor}` : '/api/queue';
       const res = await apiRequest('GET', url);
       return res.json();
     },
@@ -145,7 +145,7 @@ export default function QueueManagement() {
               <SelectValue placeholder="Filter by doctor" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Doctors</SelectItem>
+              <SelectItem value="all">All Doctors</SelectItem>
               {doctors?.map((doctor: any) => (
                 <SelectItem key={doctor.id} value={doctor.id}>
                   {doctor.name}
