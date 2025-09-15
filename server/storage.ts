@@ -136,7 +136,13 @@ export class DatabaseStorage implements IStorage {
 
   // Appointment methods
   async getAppointment(id: string): Promise<Appointment | undefined> {
-    const [appointment] = await db.select().from(appointments).where(eq(appointments.id, id));
+    const appointment = await db.query.appointments.findFirst({
+      where: eq(appointments.id, id),
+      with: {
+        doctor: true,
+        patient: true,
+      },
+    });
     return appointment || undefined;
   }
 
@@ -242,12 +248,17 @@ export class DatabaseStorage implements IStorage {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    return await db.select().from(appointments)
-      .where(and(
+    return await db.query.appointments.findMany({
+      where: and(
         gte(appointments.appointmentDate, startOfDay),
         lte(appointments.appointmentDate, endOfDay)
-      ))
-      .orderBy(appointments.appointmentDate);
+      ),
+      with: {
+        doctor: true,
+        patient: true,
+      },
+      orderBy: [appointments.appointmentDate],
+    });
   }
 
   async getAppointmentsByDoctor(doctorId: string, date?: Date): Promise<Appointment[]> {
@@ -257,29 +268,49 @@ export class DatabaseStorage implements IStorage {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
       
-      return await db.select().from(appointments)
-        .where(and(
+      return await db.query.appointments.findMany({
+        where: and(
           eq(appointments.doctorId, doctorId),
           gte(appointments.appointmentDate, startOfDay),
           lte(appointments.appointmentDate, endOfDay)
-        ))
-        .orderBy(appointments.appointmentDate);
+        ),
+        with: {
+          doctor: true,
+          patient: true,
+        },
+        orderBy: [appointments.appointmentDate],
+      });
     }
     
-    return await db.select().from(appointments)
-      .where(eq(appointments.doctorId, doctorId))
-      .orderBy(appointments.appointmentDate);
+    return await db.query.appointments.findMany({
+      where: eq(appointments.doctorId, doctorId),
+      with: {
+        doctor: true,
+        patient: true,
+      },
+      orderBy: [appointments.appointmentDate],
+    });
   }
 
   async getAppointmentsByPatient(patientId: string): Promise<Appointment[]> {
-    return await db.select().from(appointments)
-      .where(eq(appointments.patientId, patientId))
-      .orderBy(desc(appointments.appointmentDate));
+    return await db.query.appointments.findMany({
+      where: eq(appointments.patientId, patientId),
+      with: {
+        doctor: true,
+        patient: true,
+      },
+      orderBy: [desc(appointments.appointmentDate)],
+    });
   }
 
   async getAllAppointments(): Promise<Appointment[]> {
-    return await db.select().from(appointments)
-      .orderBy(desc(appointments.appointmentDate));
+    return await db.query.appointments.findMany({
+      with: {
+        doctor: true,
+        patient: true,
+      },
+      orderBy: [desc(appointments.appointmentDate)],
+    });
   }
 
   async checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeAppointmentId?: string): Promise<boolean> {
