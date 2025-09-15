@@ -543,6 +543,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/checkins', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { paymentAmount, doctorId, priority, ...checkInBody } = req.body;
+      
+      // Server-side validation for payment amount
+      if (paymentAmount !== undefined) {
+        if (typeof paymentAmount !== 'number' || isNaN(paymentAmount)) {
+          return res.status(400).json({ message: 'Payment amount must be a valid number' });
+        }
+        if (paymentAmount <= 0) {
+          return res.status(400).json({ message: 'Payment amount must be greater than 0' });
+        }
+      }
+
+      // Validate payment method requirements
+      const paymentMethod = checkInBody.paymentMethod;
+      if ((paymentMethod === 'cash' || paymentMethod === 'both') && !paymentAmount) {
+        return res.status(400).json({ message: 'Payment amount is required for cash payments' });
+      }
+
+      // Validate medical aid eligibility for medical aid payments
+      if (paymentMethod === 'medical_aid' || paymentMethod === 'both') {
+        const patient = await storage.getPatient(checkInBody.patientId);
+        if (!patient || !patient.medicalAidScheme || !patient.medicalAidNumber) {
+          return res.status(400).json({ 
+            message: 'Selected patient is not eligible for medical aid payment. Patient must have medical aid details on file.' 
+          });
+        }
+      }
+
       const checkInData = insertCheckInSchema.parse(checkInBody);
       const checkIn = await storage.createCheckIn(checkInData);
 
@@ -551,9 +578,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const paymentData = insertPaymentSchema.parse({
           patientId: checkIn.patientId,
           checkInId: checkIn.id,
-          amount: paymentAmount,
-          paymentMethod: checkIn.paymentMethod,
-          status: 'completed'
+          amount: paymentAmount.toString(), // Convert to string for decimal storage
+          paymentMethod: checkIn.paymentMethod
         });
         await storage.createPayment(paymentData);
       }
@@ -585,8 +611,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.status(201).json(checkIn);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Check-in error:', error);
+      
+      // Handle specific validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid check-in data provided.',
+          errors: error.errors 
+        });
+      }
+      
+      // Handle payment-related errors
+      if (error.message?.includes('payment amount') || error.message?.includes('Payment amount')) {
+        return res.status(400).json({ message: error.message });
+      }
+      
+      // Handle medical aid eligibility errors
+      if (error.message?.includes('medical aid') || error.message?.includes('eligible')) {
+        return res.status(400).json({ message: error.message });
+      }
+      
+      // Handle database constraint violations
+      if (error.code === '23505' || error.message?.includes('unique')) {
+        return res.status(409).json({ 
+          message: 'This patient has already been checked in today.' 
+        });
+      }
+      
       res.status(400).json({ message: 'Failed to check in patient' });
     }
   });

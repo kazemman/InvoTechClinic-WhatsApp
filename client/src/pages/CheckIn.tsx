@@ -26,7 +26,7 @@ export default function CheckIn() {
   const checkInFormSchema = insertCheckInSchema.extend({
     doctorId: z.string().min(1, 'Doctor is required'),
     priority: z.number().default(0),
-    paymentAmount: z.number().optional()
+    paymentAmount: z.coerce.number().optional()
   }).superRefine((data, ctx) => {
     // Require payment amount for cash and both payment methods
     if ((data.paymentMethod === 'cash' || data.paymentMethod === 'both') && !data.paymentAmount) {
