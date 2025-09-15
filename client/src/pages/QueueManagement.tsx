@@ -247,8 +247,8 @@ export default function QueueManagement() {
                       </Avatar>
 
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-lg" data-testid={`text-patient-name-${queueItem.id}`}>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-bold text-2xl text-foreground" data-testid={`text-patient-name-${queueItem.id}`}>
                             {queueItem.patient?.firstName} {queueItem.patient?.lastName}
                           </span>
                           <Badge className={`px-2 py-1 text-xs font-medium rounded-full border ${getPriorityBadgeClass(queueItem.priority)}`}>
@@ -256,13 +256,13 @@ export default function QueueManagement() {
                           </Badge>
                         </div>
                         
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
-                            <User className="w-4 h-4" />
+                            <User className="w-3 h-3" />
                             <span>Dr. {queueItem.doctor?.name}</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
+                            <Clock className="w-3 h-3" />
                             <span>Waiting {getWaitTime(queueItem.enteredAt)} mins</span>
                           </div>
                           <div className="flex items-center gap-1">
