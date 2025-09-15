@@ -87,36 +87,3 @@ export function localDateTimeStringToDate(dateTimeString: string): Date {
   // We create a Date object directly from this, which treats it as local time
   return new Date(dateTimeString);
 }
-
-/**
- * Round a Date to the nearest 30-minute interval
- * This ensures appointments are scheduled on :00 or :30 minute marks
- */
-export function roundToNearestThirtyMinutes(date: Date): Date {
-  const rounded = new Date(date);
-  const minutes = rounded.getMinutes();
-  
-  if (minutes <= 15) {
-    // Round down to :00
-    rounded.setMinutes(0);
-  } else if (minutes <= 45) {
-    // Round to :30
-    rounded.setMinutes(30);
-  } else {
-    // Round up to next hour :00
-    rounded.setHours(rounded.getHours() + 1);
-    rounded.setMinutes(0);
-  }
-  
-  rounded.setSeconds(0);
-  rounded.setMilliseconds(0);
-  return rounded;
-}
-
-/**
- * Check if a date is on a 30-minute interval (:00 or :30)
- */
-export function isThirtyMinuteInterval(date: Date): boolean {
-  const minutes = date.getMinutes();
-  return minutes === 0 || minutes === 30;
-}
