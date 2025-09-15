@@ -123,6 +123,10 @@ export default function DoctorPage() {
       setSelectedQueueItem(null);
       queryClient.invalidateQueries({ queryKey: ['/api/queue'] });
       queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
+      // Invalidate patient consultations specifically
+      if (selectedPatient?.id) {
+        queryClient.invalidateQueries({ queryKey: ['/api/consultations/patient', selectedPatient.id] });
+      }
     },
     onError: (error) => {
       toast({
@@ -279,6 +283,8 @@ export default function DoctorPage() {
       // Then upload files if any
       if (selectedFiles.length > 0) {
         await uploadFiles(consultation.id);
+        // Invalidate medical attachments for this consultation
+        queryClient.invalidateQueries({ queryKey: ['/api/medical-attachments', consultation.id] });
         toast({
           title: 'Files Uploaded',
           description: `${selectedFiles.length} file(s) attached to consultation`,
