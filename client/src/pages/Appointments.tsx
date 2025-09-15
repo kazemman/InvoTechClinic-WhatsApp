@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { insertAppointmentSchema, type InsertAppointment } from '@shared/schema';
 import { apiRequest } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import { formatDate, formatTime } from '@/lib/utils';
+import { formatDate, formatTime, dateToLocalDateTimeString, localDateTimeStringToDate } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -299,8 +299,8 @@ export default function Appointments() {
                           {...field}
                           type="datetime-local"
                           value={field.value instanceof Date ? 
-                            field.value.toISOString().slice(0, 16) : ''}
-                          onChange={(e) => field.onChange(new Date(e.target.value))}
+                            dateToLocalDateTimeString(field.value) : ''}
+                          onChange={(e) => field.onChange(localDateTimeStringToDate(e.target.value))}
                           data-testid="input-appointment-datetime"
                         />
                       </FormControl>
