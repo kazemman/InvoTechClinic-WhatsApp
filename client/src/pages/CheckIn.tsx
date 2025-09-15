@@ -65,7 +65,7 @@ export default function CheckIn() {
     resolver: zodResolver(checkInFormSchema),
     defaultValues: {
       patientId: '',
-      appointmentId: '',
+      appointmentId: null,
       paymentMethod: 'cash',
       isWalkIn: false,
       doctorId: '',
@@ -216,7 +216,7 @@ export default function CheckIn() {
         form.setValue('doctorId', todayAppointment.doctorId);
         form.setValue('isWalkIn', false);
       } else {
-        form.setValue('appointmentId', '');
+        form.setValue('appointmentId', null);
         form.setValue('isWalkIn', true);
       }
     }
@@ -336,11 +336,11 @@ export default function CheckIn() {
                         if (appointment.status === 'cancelled' || appointment.status === 'completed') {
                           return false;
                         }
-                        // Filter out patients who are already checked in today
-                        const isCheckedIn = todayCheckIns?.some((checkIn: any) => 
-                          checkIn.patientId === appointment.patientId
+                        // Filter out appointments that have already been checked in today
+                        const appointmentCheckedIn = todayCheckIns?.some((checkIn: any) => 
+                          checkIn.appointmentId === appointment.id
                         );
-                        return !isCheckedIn;
+                        return !appointmentCheckedIn;
                       })
                       .map((appointment: any) => (
                       <div
