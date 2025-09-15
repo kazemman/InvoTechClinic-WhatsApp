@@ -30,6 +30,8 @@ export default function Dashboard() {
       const res = await apiRequest('GET', '/api/queue');
       return res.json();
     },
+    retry: 2,
+    staleTime: 30000, // 30 seconds
   });
 
   const { data: todayAppointments } = useQuery({
@@ -144,7 +146,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="text-green-600 w-6 h-6" />
+                <TrendingUp className="text-green-600 w-6 h-6" />
               </div>
             </div>
           </CardContent>

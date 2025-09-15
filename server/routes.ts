@@ -643,7 +643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               details: `Auto-created medical aid claim for patient ID: ${checkIn.patientId}`
             });
           }
-        } catch (claimError) {
+        } catch (claimError: any) {
           // Log error but don't fail the entire check-in process
           console.error('❌ Failed to create medical aid claim:', claimError);
           console.error('❌ Error details:', claimError.message, claimError.stack);
