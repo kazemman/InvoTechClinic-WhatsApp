@@ -18,6 +18,7 @@ import { Search, ClipboardCheck, Clock, User, CreditCard } from 'lucide-react';
 export default function CheckIn() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [checkInMode, setCheckInMode] = useState<'walk-in' | 'appointments'>('walk-in');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -73,12 +74,31 @@ export default function CheckIn() {
     },
   });
 
+  const updateAppointmentMutation = useMutation({
+    mutationFn: async ({ appointmentId, status }: { appointmentId: string; status: string }) => {
+      const res = await apiRequest('PUT', `/api/appointments/${appointmentId}`, { status });
+      return res.json();
+    },
+  });
+
   const checkInMutation = useMutation({
     mutationFn: async (data: InsertCheckIn & { doctorId: string; priority: number }) => {
       const res = await apiRequest('POST', '/api/checkins', data);
       return res.json();
     },
-    onSuccess: (checkIn) => {
+    onSuccess: async (checkIn) => {
+      // If this was an appointment check-in, update the appointment status
+      if (checkIn.appointmentId) {
+        try {
+          await updateAppointmentMutation.mutateAsync({
+            appointmentId: checkIn.appointmentId,
+            status: 'confirmed'
+          });
+        } catch (error) {
+          console.error('Failed to update appointment status:', error);
+        }
+      }
+
       toast({
         title: 'Check-in Successful',
         description: `Patient has been checked in and added to the queue.`,
@@ -89,6 +109,7 @@ export default function CheckIn() {
       queryClient.invalidateQueries({ queryKey: ['/api/checkins'] });
       queryClient.invalidateQueries({ queryKey: ['/api/queue'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
     },
     onError: (error) => {
       toast({
@@ -99,23 +120,35 @@ export default function CheckIn() {
     },
   });
 
-  const selectPatient = (patient: any) => {
+  const selectPatient = (patient: any, appointmentId?: string, doctorId?: string) => {
     setSelectedPatient(patient);
     form.setValue('patientId', patient.id);
     setSearchQuery('');
 
-    // Check if patient has an appointment today
-    const todayAppointment = todayAppointments?.find((apt: any) => 
-      apt.patientId === patient.id && apt.status !== 'cancelled'
-    );
-
-    if (todayAppointment) {
-      form.setValue('appointmentId', todayAppointment.id);
-      form.setValue('doctorId', todayAppointment.doctorId);
+    if (appointmentId && doctorId) {
+      // Selecting from appointment list
+      form.setValue('appointmentId', appointmentId);
+      form.setValue('doctorId', doctorId);
       form.setValue('isWalkIn', false);
     } else {
-      form.setValue('isWalkIn', true);
+      // Check if patient has an appointment today for walk-in mode
+      const todayAppointment = todayAppointments?.find((apt: any) => 
+        apt.patientId === patient.id && apt.status !== 'cancelled'
+      );
+
+      if (todayAppointment) {
+        form.setValue('appointmentId', todayAppointment.id);
+        form.setValue('doctorId', todayAppointment.doctorId);
+        form.setValue('isWalkIn', false);
+      } else {
+        form.setValue('appointmentId', '');
+        form.setValue('isWalkIn', true);
+      }
     }
+  };
+
+  const selectAppointment = (appointment: any) => {
+    selectPatient(appointment.patient, appointment.id, appointment.doctorId);
   };
 
   const onSubmit = (data: InsertCheckIn & { doctorId: string; priority: number }) => {
@@ -179,8 +212,37 @@ export default function CheckIn() {
                 </Button>
               </div>
 
-              {/* Search Results */}
-              {searchResults && searchResults.length > 0 && (
+              {/* Check-in Mode Selector */}
+              <div className="flex gap-2">
+                <Button
+                  variant={checkInMode === 'walk-in' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setCheckInMode('walk-in');
+                    setSelectedPatient(null);
+                    form.reset();
+                  }}
+                  data-testid="button-walk-in-mode"
+                  className="flex-1"
+                >
+                  🚶 Walk-in Patients
+                </Button>
+                <Button
+                  variant={checkInMode === 'appointments' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setCheckInMode('appointments');
+                    setSelectedPatient(null);
+                    setSearchQuery('');
+                    form.reset();
+                  }}
+                  data-testid="button-appointments-mode"
+                  className="flex-1"
+                >
+                  📅 Today's Appointments
+                </Button>
+              </div>
+
+              {/* Search Results - Only show for walk-in mode */}
+              {checkInMode === 'walk-in' && searchResults && searchResults.length > 0 && (
                 <div className="border rounded-lg max-h-60 overflow-y-auto">
                   {searchResults.map((patient: any) => (
                     <div
@@ -209,6 +271,66 @@ export default function CheckIn() {
                 </div>
               )}
 
+              {/* Today's Appointments List - Only show for appointments mode */}
+              {checkInMode === 'appointments' && (
+                <div className="space-y-3">
+                  <h3 className="font-medium text-sm text-muted-foreground">Today's Available Appointments</h3>
+                  {todayAppointments && todayAppointments.length > 0 ? (
+                    <div className="border rounded-lg max-h-96 overflow-y-auto">
+                      {todayAppointments
+                        .filter((appointment: any) => appointment.status !== 'cancelled' && appointment.status !== 'completed')
+                        .map((appointment: any) => (
+                        <div
+                          key={appointment.id}
+                          className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer border-b last:border-b-0"
+                          onClick={() => selectAppointment(appointment)}
+                          data-testid={`appointment-item-${appointment.id}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Avatar>
+                              {appointment.patient?.photoUrl && <AvatarImage src={appointment.patient.photoUrl} />}
+                              <AvatarFallback>
+                                {appointment.patient?.firstName?.charAt(0)}{appointment.patient?.lastName?.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="font-medium">
+                                {appointment.patient?.firstName} {appointment.patient?.lastName}
+                              </p>
+                              <p className="text-sm text-muted-foreground">{appointment.patient?.phone}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                <Clock className="w-3 h-3" />
+                                {formatTime(appointment.appointmentDate)}
+                                <span className="mx-1">•</span>
+                                <User className="w-3 h-3" />
+                                {appointment.doctor?.name}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge 
+                              variant={appointment.status === 'scheduled' ? 'secondary' : 
+                                     appointment.status === 'confirmed' ? 'default' : 'outline'}
+                              className="text-xs"
+                            >
+                              {appointment.status}
+                            </Badge>
+                            <p className="text-xs text-muted-foreground">
+                              {appointment.appointmentType}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground border rounded-lg" data-testid="text-no-appointments">
+                      <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>No appointments scheduled for today</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Selected Patient */}
               {selectedPatient && (
                 <div className="border rounded-lg p-4 bg-accent/10">
@@ -223,7 +345,19 @@ export default function CheckIn() {
                       <p className="font-semibold text-lg" data-testid="text-selected-patient">
                         {selectedPatient.firstName} {selectedPatient.lastName}
                       </p>
-                      <p className="text-muted-foreground">{selectedPatient.phone}</p>
+                      <div className="flex items-center gap-4">
+                        <p className="text-muted-foreground">{selectedPatient.phone}</p>
+                        {checkInMode === 'appointments' && (
+                          <Badge variant="outline" className="text-xs">
+                            📅 Appointment Patient
+                          </Badge>
+                        )}
+                        {form.getValues('isWalkIn') && (
+                          <Badge variant="secondary" className="text-xs">
+                            🚶 Walk-in Patient
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
