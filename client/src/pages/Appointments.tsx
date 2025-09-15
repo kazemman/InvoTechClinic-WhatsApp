@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Calendar, Clock, User, CalendarPlus, Search, X, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, User, CalendarPlus, Search, X, AlertTriangle, CheckCircle, Users, MapPin } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -100,6 +100,70 @@ export default function Appointments() {
     return conflict;
   }, [watchedDoctorId, watchedAppointmentDate, allAppointments]);
 
+  // Generate time slots for availability overview
+  const generateTimeSlots = () => {
+    const slots = [];
+    const startHour = 8; // 8 AM
+    const endHour = 18; // 6 PM
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const datetime = new Date(selectedDate + 'T' + time + ':00');
+        slots.push({
+          time,
+          datetime,
+          displayTime: datetime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+        });
+      }
+    }
+    return slots;
+  };
+
+  const timeSlots = generateTimeSlots();
+
+  // Get slot occupancy for the day
+  const getSlotOccupancy = (slotTime: string) => {
+    if (!appointments) return [];
+    
+    return appointments.filter((appointment: any) => {
+      if (['cancelled', 'completed'].includes(appointment.status)) return false;
+      
+      const appointmentTime = formatTime(appointment.appointmentDate);
+      return appointmentTime === slotTime;
+    });
+  };
+
+  // Check if appointments have conflicts (same doctor, same time)
+  const hasConflict = (appointment: any) => {
+    if (!allAppointments) return false;
+    
+    const appointmentTime = new Date(appointment.appointmentDate).getTime();
+    const conflicts = allAppointments.filter((other: any) => {
+      if (other.id === appointment.id) return false;
+      if (['cancelled', 'completed'].includes(other.status)) return false;
+      
+      const otherTime = new Date(other.appointmentDate).getTime();
+      return (
+        other.doctorId === appointment.doctorId &&
+        otherTime === appointmentTime
+      );
+    });
+    
+    return conflicts.length > 0;
+  };
+
+  // Get time slot end time for better display
+  const getTimeSlotRange = (appointmentDate: string) => {
+    const start = new Date(appointmentDate);
+    const end = new Date(start.getTime() + 30 * 60000); // Add 30 minutes
+    
+    return {
+      start: formatTime(start),
+      end: formatTime(end)
+    };
+  };
+
   const { data: doctors } = useQuery({
     queryKey: ['/api/users'],
     queryFn: async () => {
@@ -164,6 +228,7 @@ export default function Appointments() {
       setShowPatientResults(false);
       setTimeConflictError('');
       queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments/all'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
     },
     onError: (error) => {
@@ -186,6 +251,7 @@ export default function Appointments() {
         description: 'The appointment has been successfully updated.',
       });
       queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments/all'] });
     },
     onError: (error) => {
       toast({
@@ -211,6 +277,15 @@ export default function Appointments() {
   };
 
   const onSubmit = (data: InsertAppointment) => {
+    // Prevent submission if there's an appointment conflict
+    if (appointmentConflict) {
+      toast({
+        title: 'Cannot Schedule Appointment',
+        description: 'Please resolve the time conflict before scheduling.',
+        variant: 'destructive',
+      });
+      return;
+    }
     createAppointmentMutation.mutate(data);
   };
 
@@ -392,7 +467,7 @@ export default function Appointments() {
                       <p className="text-xs text-muted-foreground mt-1">
                         Appointments can only be scheduled at 30-minute intervals (:00 or :30)
                       </p>
-                      {timeConflictError && (
+                      {appointmentConflict && (
                         <Alert className="mt-2 border-destructive/50 text-destructive" data-testid="alert-time-conflict">
                           <AlertTriangle className="h-4 w-4" />
                           <AlertDescription className="text-sm">
@@ -453,13 +528,13 @@ export default function Appointments() {
                 <Button 
                   type="submit" 
                   className="w-full" 
-                  disabled={createAppointmentMutation.isPending || !!timeConflictError}
+                  disabled={createAppointmentMutation.isPending || !!appointmentConflict}
                   data-testid="button-schedule-appointment"
                 >
                   {createAppointmentMutation.isPending ? 'Scheduling...' : 
-                   timeConflictError ? 'Time Slot Conflict' : 'Schedule Appointment'}
+                   appointmentConflict ? 'Time Slot Conflict' : 'Schedule Appointment'}
                 </Button>
-                {timeConflictError && (
+                {appointmentConflict && (
                   <p className="text-xs text-muted-foreground text-center mt-2" data-testid="text-conflict-help">
                     Please resolve the time conflict before scheduling
                   </p>
@@ -487,70 +562,169 @@ export default function Appointments() {
                 <TabsTrigger value="tomorrow" data-testid="tab-tomorrow">Tomorrow</TabsTrigger>
               </TabsList>
               <TabsContent value={selectedTab} className="mt-0">
-            <div className="space-y-4">
+            {/* Time Slot Availability Overview */}
+            <div className="mb-6 p-4 bg-muted/30 rounded-lg">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Time Slot Overview for {selectedTab === 'today' ? 'Today' : 'Tomorrow'}
+              </h4>
+              <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-10 gap-2">
+                {timeSlots.map((slot) => {
+                  const occupancy = getSlotOccupancy(slot.time);
+                  const isOccupied = occupancy.length > 0;
+                  const hasMultipleBookings = occupancy.length > 1;
+                  
+                  return (
+                    <div
+                      key={slot.time}
+                      className={`time-grid-slot text-xs ${
+                        hasMultipleBookings
+                          ? 'conflict'
+                          : isOccupied
+                          ? 'occupied'
+                          : 'available'
+                      }`}
+                      title={`${slot.displayTime} - ${hasMultipleBookings ? 'Conflict!' : isOccupied ? 'Booked' : 'Available'}`}
+                      data-testid={`time-slot-${slot.time}`}
+                    >
+                      {slot.displayTime.replace(' ', '').toLowerCase()}
+                      {hasMultipleBookings && (
+                        <AlertTriangle className="w-3 h-3 mx-auto mt-1" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-green-200 border border-green-300 rounded"></div>
+                  <span>Available</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-blue-200 border border-blue-300 rounded"></div>
+                  <span>Booked</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-red-200 border border-red-300 rounded"></div>
+                  <span>Conflict</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
               {appointments && appointments.length > 0 ? (
-                appointments.map((appointment: any) => (
-                  <div key={appointment.id} className="border rounded-lg p-4 hover:bg-muted/50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="text-center min-w-[60px]">
+                appointments.map((appointment: any) => {
+                  const isConflicted = hasConflict(appointment);
+                  const timeRange = getTimeSlotRange(appointment.appointmentDate);
+                  
+                  return (
+                    <div 
+                      key={appointment.id} 
+                      className={`appointment-slot status-${appointment.status} ${isConflicted ? 'has-conflict' : ''} rounded-lg overflow-hidden`}
+                      data-testid={`appointment-card-${appointment.id}`}
+                    >
+                      <div className="flex items-stretch">
+                        {/* Time Slot Indicator */}
+                        <div className="time-slot-indicator">
                           <div className="text-lg font-bold text-foreground">
                             {formatTime(appointment.appointmentDate)}
                           </div>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <User className="w-4 h-4 text-muted-foreground" />
-                            <span className="font-medium" data-testid={`text-patient-${appointment.id}`}>
-                              {appointment.patient?.firstName} {appointment.patient?.lastName}
-                            </span>
+                          <div className="time-slot-duration">
+                            30 min slot
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            {appointment.appointmentType} • Dr. {appointment.doctor?.name}
-                          </div>
-                          {appointment.notes && (
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {appointment.notes}
+                          {isConflicted && (
+                            <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400 mt-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              <span className="text-xs">Conflict!</span>
                             </div>
                           )}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(appointment.status)}`}
-                          data-testid={`badge-status-${appointment.id}`}
-                        >
-                          {appointment.status.replace('_', ' ')}
-                        </Badge>
-                        <div className="flex gap-1">
-                          {appointment.status === 'scheduled' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
-                              data-testid={`button-confirm-${appointment.id}`}
-                            >
-                              Confirm
-                            </Button>
+                        
+                        {/* Appointment Content */}
+                        <div className="appointment-content">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-muted-foreground" />
+                              <span className="font-semibold text-foreground" data-testid={`text-patient-${appointment.id}`}>
+                                {appointment.patient?.firstName} {appointment.patient?.lastName}
+                              </span>
+                              <Badge 
+                                className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(appointment.status)}`}
+                                data-testid={`badge-status-${appointment.id}`}
+                              >
+                                {appointment.status.replace('_', ' ')}
+                              </Badge>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <MapPin className="w-4 h-4" />
+                              <span>{appointment.appointmentType}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Users className="w-4 h-4" />
+                              <span>Dr. {appointment.doctor?.name}</span>
+                            </div>
+                          </div>
+                          
+                          {appointment.notes && (
+                            <div className="text-sm text-muted-foreground mt-2 p-2 bg-muted/50 rounded border-l-2 border-muted-foreground/20">
+                              <span className="font-medium">Notes:</span> {appointment.notes}
+                            </div>
                           )}
-                          {(appointment.status === 'confirmed' || appointment.status === 'scheduled') && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
-                              data-testid={`button-cancel-${appointment.id}`}
-                            >
-                              Cancel
-                            </Button>
+                          
+                          {isConflicted && (
+                            <div className="flex items-center gap-2 mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded text-sm text-orange-700 dark:text-orange-300">
+                              <AlertTriangle className="w-4 h-4" />
+                              <span>Time conflict detected with another appointment</span>
+                            </div>
                           )}
+                        </div>
+                        
+                        {/* Appointment Actions */}
+                        <div className="appointment-actions">
+                          <div className="flex flex-col gap-2">
+                            {appointment.status === 'scheduled' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
+                                data-testid={`button-confirm-${appointment.id}`}
+                                className="text-xs"
+                              >
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Confirm
+                              </Button>
+                            )}
+                            {(appointment.status === 'confirmed' || appointment.status === 'scheduled') && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
+                                data-testid={`button-cancel-${appointment.id}`}
+                                className="text-xs"
+                              >
+                                <X className="w-3 h-3 mr-1" />
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div className="text-center py-8 text-muted-foreground" data-testid="text-no-appointments">
-                  No appointments scheduled for {formatDate(selectedDate)}
+                <div className="text-center py-12">
+                  <Calendar className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <div className="text-muted-foreground" data-testid="text-no-appointments">
+                    <p className="font-medium">No appointments scheduled</p>
+                    <p className="text-sm">for {formatDate(selectedDate)}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    All time slots are available for booking
+                  </p>
                 </div>
               )}
             </div>
