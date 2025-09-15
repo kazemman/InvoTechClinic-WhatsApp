@@ -292,9 +292,14 @@ export class DatabaseStorage implements IStorage {
 
   // Queue methods
   async getQueue(): Promise<Queue[]> {
-    return await db.select().from(queue)
-      .where(sql`${queue.status} IN ('waiting', 'in_progress')`)
-      .orderBy(queue.priority, queue.enteredAt);
+    return await db.query.queue.findMany({
+      where: sql`${queue.status} IN ('waiting', 'in_progress')`,
+      with: {
+        patient: true,
+        doctor: true
+      },
+      orderBy: [queue.enteredAt, queue.priority]
+    });
   }
 
   async addToQueue(insertQueue: InsertQueue): Promise<Queue> {
@@ -316,12 +321,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getQueueByDoctor(doctorId: string): Promise<Queue[]> {
-    return await db.select().from(queue)
-      .where(and(
+    return await db.query.queue.findMany({
+      where: and(
         eq(queue.doctorId, doctorId),
         sql`${queue.status} IN ('waiting', 'in_progress')`
-      ))
-      .orderBy(queue.priority, queue.enteredAt);
+      ),
+      with: {
+        patient: true,
+        doctor: true
+      },
+      orderBy: [queue.enteredAt, queue.priority]
+    });
   }
 
   // Consultation methods
