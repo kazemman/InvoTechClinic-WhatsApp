@@ -3,9 +3,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { insertAppointmentSchema, type InsertAppointment } from '@shared/schema';
+import { z } from 'zod';
 import { apiRequest } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import { formatDate, formatTime, dateToLocalDateTimeString, localDateTimeStringToDate } from '@/lib/utils';
+import { formatDate, formatTime, dateToLocalDateTimeString, localDateTimeStringToDate, roundToNearestThirtyMinutes, isThirtyMinuteInterval } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -23,19 +24,33 @@ export default function Appointments() {
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [showPatientResults, setShowPatientResults] = useState(false);
   
-  // Calculate today and tomorrow dates
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const selectedDate = selectedTab === 'today' ? today : tomorrow;
+  // Helper function to convert Date to local YYYY-MM-DD format without UTC conversion
+  const toLocalDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Calculate today and tomorrow dates using local timezone
+  const todayDate = new Date();
+  const tomorrowDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + 1);
+  const selectedDate = selectedTab === 'today' ? toLocalDateString(todayDate) : toLocalDateString(tomorrowDate);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const form = useForm<InsertAppointment>({
-    resolver: zodResolver(insertAppointmentSchema),
+    resolver: zodResolver(insertAppointmentSchema.extend({
+      appointmentDate: z.date().refine((date) => {
+        return isThirtyMinuteInterval(date);
+      }, {
+        message: 'Appointment time must be on the hour (:00) or half-hour (:30)'
+      })
+    })),
     defaultValues: {
       patientId: '',
       doctorId: '',
-      appointmentDate: new Date(),
+      appointmentDate: roundToNearestThirtyMinutes(new Date()),
       appointmentType: '',
       notes: '',
     },
@@ -81,7 +96,7 @@ export default function Appointments() {
       form.reset({
         patientId: '',
         doctorId: '',
-        appointmentDate: new Date(),
+        appointmentDate: roundToNearestThirtyMinutes(new Date()),
         appointmentType: '',
         notes: '',
       });
@@ -304,12 +319,20 @@ export default function Appointments() {
                         <Input
                           {...field}
                           type="datetime-local"
+                          step="1800"
                           value={field.value instanceof Date ? 
                             dateToLocalDateTimeString(field.value) : ''}
-                          onChange={(e) => field.onChange(localDateTimeStringToDate(e.target.value))}
+                          onChange={(e) => {
+                            const selectedDate = localDateTimeStringToDate(e.target.value);
+                            // Always round to nearest 30-minute interval to ensure consistency
+                            field.onChange(roundToNearestThirtyMinutes(selectedDate));
+                          }}
                           data-testid="input-appointment-datetime"
                         />
                       </FormControl>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Appointments can only be scheduled at 30-minute intervals (:00 or :30)
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
