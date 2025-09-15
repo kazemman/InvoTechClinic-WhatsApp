@@ -542,8 +542,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check-in routes
   app.post('/api/checkins', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const checkInData = insertCheckInSchema.parse(req.body);
+      const { paymentAmount, doctorId, priority, ...checkInBody } = req.body;
+      const checkInData = insertCheckInSchema.parse(checkInBody);
       const checkIn = await storage.createCheckIn(checkInData);
+
+      // Create payment record if payment amount is provided
+      if (paymentAmount && paymentAmount > 0) {
+        const paymentData = insertPaymentSchema.parse({
+          patientId: checkIn.patientId,
+          checkInId: checkIn.id,
+          amount: paymentAmount,
+          paymentMethod: checkIn.paymentMethod,
+          status: 'completed'
+        });
+        await storage.createPayment(paymentData);
+      }
 
       // If there's an appointment, update its status to confirmed
       if (checkIn.appointmentId) {
@@ -554,9 +567,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const queueData = insertQueueSchema.parse({
         patientId: checkIn.patientId,
         checkInId: checkIn.id,
-        doctorId: req.body.doctorId,
+        doctorId: doctorId,
         status: 'waiting',
-        priority: req.body.priority || 0
+        priority: priority || 0
       });
 
       await storage.addToQueue(queueData);
@@ -567,12 +580,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createActivityLog({
           userId: req.user.id,
           action: 'patient_checkin',
-          details: `Patient checked in: ID ${checkIn.patientId}`
+          details: `Patient checked in: ID ${checkIn.patientId}${paymentAmount ? ` with payment of R${paymentAmount}` : ''}`
         });
       }
 
       res.status(201).json(checkIn);
     } catch (error) {
+      console.error('Check-in error:', error);
       res.status(400).json({ message: 'Failed to check in patient' });
     }
   });

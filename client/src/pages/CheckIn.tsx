@@ -13,20 +13,54 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Search, ClipboardCheck, Clock, User, CreditCard } from 'lucide-react';
+import { Search, ClipboardCheck, Clock, User, AlertCircle } from 'lucide-react';
+import { z } from 'zod';
 
 export default function CheckIn() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
-  const [checkInMode, setCheckInMode] = useState<'walk-in' | 'appointments'>('walk-in');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const form = useForm<InsertCheckIn & { doctorId: string; priority: number }>({
-    resolver: zodResolver(insertCheckInSchema.extend({
-      doctorId: insertCheckInSchema.shape.patientId,
-      priority: insertCheckInSchema.shape.patientId.transform(() => 0)
-    })),
+  // Extended form schema with conditional payment amount validation
+  const checkInFormSchema = insertCheckInSchema.extend({
+    doctorId: z.string().min(1, 'Doctor is required'),
+    priority: z.number().default(0),
+    paymentAmount: z.number().optional()
+  }).superRefine((data, ctx) => {
+    // Require payment amount for cash and both payment methods
+    if ((data.paymentMethod === 'cash' || data.paymentMethod === 'both') && !data.paymentAmount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Payment amount is required for cash payments',
+        path: ['paymentAmount'],
+      });
+    }
+    
+    // Validate positive amount when provided
+    if (data.paymentAmount !== undefined && data.paymentAmount <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Payment amount must be greater than 0',
+        path: ['paymentAmount'],
+      });
+    }
+    
+    // Validate medical aid eligibility
+    if ((data.paymentMethod === 'medical_aid' || data.paymentMethod === 'both')) {
+      const patient = selectedPatient;
+      if (!patient?.medicalAidScheme || !patient?.medicalAidNumber) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Selected patient is not eligible for medical aid payment',
+          path: ['paymentMethod'],
+        });
+      }
+    }
+  });
+
+  const form = useForm<InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number }>({
+    resolver: zodResolver(checkInFormSchema),
     defaultValues: {
       patientId: '',
       appointmentId: '',
@@ -34,8 +68,12 @@ export default function CheckIn() {
       isWalkIn: false,
       doctorId: '',
       priority: 0,
+      paymentAmount: undefined,
     },
   });
+
+  const selectedPaymentMethod = form.watch('paymentMethod');
+  const showPaymentAmount = selectedPaymentMethod === 'cash' || selectedPaymentMethod === 'both';
 
   const { data: searchResults } = useQuery({
     queryKey: ['/api/patients/search', searchQuery],
@@ -65,14 +103,6 @@ export default function CheckIn() {
     },
   });
 
-  const { data: recentCheckIns } = useQuery({
-    queryKey: ['/api/checkins', new Date().toISOString().split('T')[0]],
-    queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0];
-      const res = await apiRequest('GET', `/api/checkins?date=${today}`);
-      return res.json();
-    },
-  });
 
   const updateAppointmentMutation = useMutation({
     mutationFn: async ({ appointmentId, status }: { appointmentId: string; status: string }) => {
@@ -82,7 +112,7 @@ export default function CheckIn() {
   });
 
   const checkInMutation = useMutation({
-    mutationFn: async (data: InsertCheckIn & { doctorId: string; priority: number }) => {
+    mutationFn: async (data: InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number }) => {
       const res = await apiRequest('POST', '/api/checkins', data);
       return res.json();
     },
@@ -111,19 +141,52 @@ export default function CheckIn() {
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('Check-in error:', error);
+      
+      // Handle specific validation errors
+      let errorMessage = error.message || 'Failed to check in patient';
+      
+      if (error.message?.includes('payment amount')) {
+        errorMessage = 'Please enter a valid payment amount for cash payments';
+      } else if (error.message?.includes('medical aid')) {
+        errorMessage = 'This patient is not eligible for medical aid payment';
+      } else if (error.message?.includes('required')) {
+        errorMessage = 'Please fill in all required fields';
+      }
+      
       toast({
         title: 'Check-in Failed',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive',
       });
     },
   });
 
   const selectPatient = (patient: any, appointmentId?: string, doctorId?: string) => {
+    const previousPatient = selectedPatient;
     setSelectedPatient(patient);
     form.setValue('patientId', patient.id);
     setSearchQuery('');
+
+    // Check if patient has medical aid
+    const patientHasMedicalAid = patient?.medicalAidScheme && patient?.medicalAidNumber;
+    const currentPaymentMethod = form.getValues('paymentMethod');
+    
+    // Reset payment method if switching to patient without medical aid and current method requires medical aid
+    if (!patientHasMedicalAid && (currentPaymentMethod === 'medical_aid' || currentPaymentMethod === 'both')) {
+      form.setValue('paymentMethod', 'cash');
+      form.setValue('paymentAmount', undefined);
+      
+      // Show toast notification when auto-resetting payment method
+      if (previousPatient) {
+        toast({
+          title: 'Payment Method Reset',
+          description: 'Payment method changed to Cash as this patient is not eligible for medical aid.',
+          variant: 'default',
+        });
+      }
+    }
 
     if (appointmentId && doctorId) {
       // Selecting from appointment list
@@ -131,7 +194,7 @@ export default function CheckIn() {
       form.setValue('doctorId', doctorId);
       form.setValue('isWalkIn', false);
     } else {
-      // Check if patient has an appointment today for walk-in mode
+      // Check if patient has an appointment today
       const todayAppointment = todayAppointments?.find((apt: any) => 
         apt.patientId === patient.id && apt.status !== 'cancelled'
       );
@@ -147,11 +210,15 @@ export default function CheckIn() {
     }
   };
 
+  // Check if patient has medical aid
+  const patientHasMedicalAid = selectedPatient?.medicalAidScheme && selectedPatient?.medicalAidNumber;
+
   const selectAppointment = (appointment: any) => {
     selectPatient(appointment.patient, appointment.id, appointment.doctorId);
   };
 
-  const onSubmit = (data: InsertCheckIn & { doctorId: string; priority: number }) => {
+  const onSubmit = (data: InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number }) => {
+    // Include all form data including payment amount
     checkInMutation.mutate(data);
   };
 
@@ -173,9 +240,9 @@ export default function CheckIn() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Check-in Form */}
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardCheck className="w-5 h-5" />
@@ -212,37 +279,8 @@ export default function CheckIn() {
                 </Button>
               </div>
 
-              {/* Check-in Mode Selector */}
-              <div className="flex gap-2">
-                <Button
-                  variant={checkInMode === 'walk-in' ? 'default' : 'outline'}
-                  onClick={() => {
-                    setCheckInMode('walk-in');
-                    setSelectedPatient(null);
-                    form.reset();
-                  }}
-                  data-testid="button-walk-in-mode"
-                  className="flex-1"
-                >
-                  🚶 Walk-in Patients
-                </Button>
-                <Button
-                  variant={checkInMode === 'appointments' ? 'default' : 'outline'}
-                  onClick={() => {
-                    setCheckInMode('appointments');
-                    setSelectedPatient(null);
-                    setSearchQuery('');
-                    form.reset();
-                  }}
-                  data-testid="button-appointments-mode"
-                  className="flex-1"
-                >
-                  📅 Today's Appointments
-                </Button>
-              </div>
-
-              {/* Search Results - Only show for walk-in mode */}
-              {checkInMode === 'walk-in' && searchResults && searchResults.length > 0 && (
+              {/* Search Results */}
+              {searchResults && searchResults.length > 0 && (
                 <div className="border rounded-lg max-h-60 overflow-y-auto">
                   {searchResults.map((patient: any) => (
                     <div
@@ -271,65 +309,63 @@ export default function CheckIn() {
                 </div>
               )}
 
-              {/* Today's Appointments List - Only show for appointments mode */}
-              {checkInMode === 'appointments' && (
-                <div className="space-y-3">
-                  <h3 className="font-medium text-sm text-muted-foreground">Today's Available Appointments</h3>
-                  {todayAppointments && todayAppointments.length > 0 ? (
-                    <div className="border rounded-lg max-h-96 overflow-y-auto">
-                      {todayAppointments
-                        .filter((appointment: any) => appointment.status !== 'cancelled' && appointment.status !== 'completed')
-                        .map((appointment: any) => (
-                        <div
-                          key={appointment.id}
-                          className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer border-b last:border-b-0"
-                          onClick={() => selectAppointment(appointment)}
-                          data-testid={`appointment-item-${appointment.id}`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              {appointment.patient?.photoUrl && <AvatarImage src={appointment.patient.photoUrl} />}
-                              <AvatarFallback>
-                                {appointment.patient?.firstName?.charAt(0)}{appointment.patient?.lastName?.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                              <p className="font-medium">
-                                {appointment.patient?.firstName} {appointment.patient?.lastName}
-                              </p>
-                              <p className="text-sm text-muted-foreground">{appointment.patient?.phone}</p>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                                <Clock className="w-3 h-3" />
-                                {formatTime(appointment.appointmentDate)}
-                                <span className="mx-1">•</span>
-                                <User className="w-3 h-3" />
-                                {appointment.doctor?.name}
-                              </div>
+              {/* Today's Appointments List - Always visible */}
+              <div className="space-y-3">
+                <h3 className="font-medium text-sm text-muted-foreground">Today's Available Appointments</h3>
+                {todayAppointments && todayAppointments.length > 0 ? (
+                  <div className="border rounded-lg max-h-96 overflow-y-auto">
+                    {todayAppointments
+                      .filter((appointment: any) => appointment.status !== 'cancelled' && appointment.status !== 'completed')
+                      .map((appointment: any) => (
+                      <div
+                        key={appointment.id}
+                        className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer border-b last:border-b-0"
+                        onClick={() => selectAppointment(appointment)}
+                        data-testid={`appointment-item-${appointment.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            {appointment.patient?.photoUrl && <AvatarImage src={appointment.patient.photoUrl} />}
+                            <AvatarFallback>
+                              {appointment.patient?.firstName?.charAt(0)}{appointment.patient?.lastName?.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="font-medium">
+                              {appointment.patient?.firstName} {appointment.patient?.lastName}
+                            </p>
+                            <p className="text-sm text-muted-foreground">{appointment.patient?.phone}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                              <Clock className="w-3 h-3" />
+                              {formatTime(appointment.appointmentDate)}
+                              <span className="mx-1">•</span>
+                              <User className="w-3 h-3" />
+                              {appointment.doctor?.name}
                             </div>
                           </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <Badge 
-                              variant={appointment.status === 'scheduled' ? 'secondary' : 
-                                     appointment.status === 'confirmed' ? 'default' : 'outline'}
-                              className="text-xs"
-                            >
-                              {appointment.status}
-                            </Badge>
-                            <p className="text-xs text-muted-foreground">
-                              {appointment.appointmentType}
-                            </p>
-                          </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground border rounded-lg" data-testid="text-no-appointments">
-                      <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p>No appointments scheduled for today</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge 
+                            variant={appointment.status === 'scheduled' ? 'secondary' : 
+                                   appointment.status === 'confirmed' ? 'default' : 'outline'}
+                            className="text-xs"
+                          >
+                            {appointment.status}
+                          </Badge>
+                          <p className="text-xs text-muted-foreground">
+                            {appointment.appointmentType}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground border rounded-lg" data-testid="text-no-appointments">
+                    <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>No appointments scheduled for today</p>
+                  </div>
+                )}
+              </div>
 
               {/* Selected Patient */}
               {selectedPatient && (
@@ -347,14 +383,19 @@ export default function CheckIn() {
                       </p>
                       <div className="flex items-center gap-4">
                         <p className="text-muted-foreground">{selectedPatient.phone}</p>
-                        {checkInMode === 'appointments' && (
+                        {form.getValues('isWalkIn') && (
+                          <Badge variant="secondary" className="text-xs">
+                            🚶 Walk-in Patient
+                          </Badge>
+                        )}
+                        {!form.getValues('isWalkIn') && (
                           <Badge variant="outline" className="text-xs">
                             📅 Appointment Patient
                           </Badge>
                         )}
-                        {form.getValues('isWalkIn') && (
-                          <Badge variant="secondary" className="text-xs">
-                            🚶 Walk-in Patient
+                        {patientHasMedicalAid && (
+                          <Badge variant="default" className="text-xs">
+                            🏥 Medical Aid
                           </Badge>
                         )}
                       </div>
@@ -406,14 +447,48 @@ export default function CheckIn() {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="cash">💵 Cash</SelectItem>
-                          <SelectItem value="medical_aid">🏥 Medical Aid</SelectItem>
-                          <SelectItem value="both">💳 Both (Cash + Medical Aid)</SelectItem>
+                          <SelectItem value="medical_aid" disabled={!patientHasMedicalAid}>
+                            🏥 Medical Aid {!patientHasMedicalAid && '(Not Available)'}
+                          </SelectItem>
+                          <SelectItem value="both" disabled={!patientHasMedicalAid}>
+                            💳 Both (Cash + Medical Aid) {!patientHasMedicalAid && '(Medical Aid Not Available)'}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
+                      {!patientHasMedicalAid && selectedPatient && (
+                        <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Patient does not have medical aid on file
+                        </p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                {/* Payment Amount Field - Show for cash and both */}
+                {showPaymentAmount && (
+                  <FormField
+                    control={form.control}
+                    name="paymentAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Payment Amount (R) *</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
+                            data-testid="input-payment-amount"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <FormField
                   control={form.control}
@@ -451,58 +526,6 @@ export default function CheckIn() {
           </CardContent>
         </Card>
 
-        {/* Today's Check-ins */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Today's Check-ins
-            </CardTitle>
-            <CardDescription>
-              Recent patient check-ins and queue status
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentCheckIns && recentCheckIns.length > 0 ? (
-                recentCheckIns.slice(0, 8).map((checkIn: any) => (
-                  <div key={checkIn.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-8 h-8">
-                        {checkIn.patient?.photoUrl && <AvatarImage src={checkIn.patient.photoUrl} />}
-                        <AvatarFallback className="text-xs">
-                          {checkIn.patient?.firstName?.charAt(0)}{checkIn.patient?.lastName?.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium text-sm" data-testid={`text-checkin-patient-${checkIn.id}`}>
-                          {checkIn.patient?.firstName} {checkIn.patient?.lastName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatTime(checkIn.checkInTime)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="text-xs">
-                        {getPaymentMethodIcon(checkIn.paymentMethod)}
-                      </div>
-                      {checkIn.isWalkIn && (
-                        <Badge variant="secondary" className="text-xs">
-                          Walk-in
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-muted-foreground" data-testid="text-no-checkins">
-                  No check-ins today
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
