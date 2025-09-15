@@ -69,7 +69,7 @@ export default function DoctorPage() {
     defaultValues: {
       patientId: '',
       doctorId: '',
-      queueId: '',
+      queueId: undefined,
       notes: '',
       diagnosis: '',
       prescription: '',
@@ -116,12 +116,25 @@ export default function DoctorPage() {
     setSelectedQueueItem(null);
     form.setValue('patientId', patient.id);
     form.setValue('doctorId', currentUser?.id || '');
-    form.setValue('queueId', '');
+    form.setValue('queueId', undefined);
     setSearchQuery('');
   };
 
   const onSubmit = (data: InsertConsultation) => {
-    createConsultationMutation.mutate(data);
+    // Filter out undefined or empty queueId
+    const consultationData = {
+      ...data,
+      queueId: data.queueId && data.queueId.trim() ? data.queueId : undefined
+    };
+    
+    // Remove undefined fields to avoid sending them to the API
+    Object.keys(consultationData).forEach(key => {
+      if (consultationData[key as keyof InsertConsultation] === undefined) {
+        delete consultationData[key as keyof InsertConsultation];
+      }
+    });
+    
+    createConsultationMutation.mutate(consultationData);
   };
 
   const getStatusBadgeClass = (status: string) => {

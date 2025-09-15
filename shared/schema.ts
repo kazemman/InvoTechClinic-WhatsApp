@@ -80,7 +80,7 @@ export const consultations = pgTable("consultations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   patientId: varchar("patient_id").notNull().references(() => patients.id),
   doctorId: varchar("doctor_id").notNull().references(() => users.id),
-  queueId: varchar("queue_id").notNull().references(() => queue.id),
+  queueId: varchar("queue_id").references(() => queue.id),
   notes: text("notes"),
   diagnosis: text("diagnosis"),
   prescription: text("prescription"),

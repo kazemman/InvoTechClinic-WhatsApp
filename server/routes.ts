@@ -740,9 +740,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const consultationData = insertConsultationSchema.parse(req.body);
       const consultation = await storage.createConsultation(consultationData);
 
-      // Update queue status to completed
-      await storage.updateQueueStatus(consultation.queueId, 'completed', undefined, new Date());
-      broadcastQueueUpdate();
+      // Update queue status to completed only if queueId exists
+      if (consultation.queueId && consultation.queueId.trim()) {
+        await storage.updateQueueStatus(consultation.queueId, 'completed', undefined, new Date());
+        broadcastQueueUpdate();
+      }
 
       // Log activity
       if (req.user) {
