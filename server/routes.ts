@@ -407,7 +407,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const appointmentData = insertAppointmentSchema.parse(bodyData);
       console.log('Validated appointment data:', JSON.stringify(appointmentData, null, 2));
       
-      const appointment = await storage.createAppointment(appointmentData);
+      // Use transaction-based safe method for race condition prevention
+      const appointment = await storage.createAppointmentSafely(appointmentData);
       console.log('Created appointment:', JSON.stringify(appointment, null, 2));
 
       // Log activity
@@ -428,6 +429,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         code: error.code,
         stack: error.stack
       });
+      
+      // Handle transaction-based conflict errors
+      if (error.message === 'APPOINTMENT_CONFLICT') {
+        return res.status(409).json({
+          message: 'This time slot is already booked for the selected doctor. Please choose a different time.',
+          conflictType: 'time_slot_conflict'
+        });
+      }
       
       // Handle Zod validation errors
       if (error.name === 'ZodError') {
@@ -463,8 +472,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/appointments/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
-      const appointmentData = req.body;
-      const appointment = await storage.updateAppointment(id, appointmentData);
+      
+      // Transform date strings to Date objects if needed
+      const bodyData = { ...req.body };
+      if (bodyData.appointmentDate && typeof bodyData.appointmentDate === 'string') {
+        bodyData.appointmentDate = new Date(bodyData.appointmentDate);
+      }
+      
+      // Use partial schema for updates (don't require all fields)
+      const updateSchema = insertAppointmentSchema.partial();
+      const appointmentData = updateSchema.parse(bodyData);
+      
+      // Use transaction-based safe method for race condition prevention
+      const appointment = await storage.updateAppointmentSafely(id, appointmentData);
 
       // Log activity
       if (req.user) {
@@ -476,7 +496,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(appointment);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Appointment update error:', error);
+      
+      // Handle transaction-based errors
+      if (error.message === 'APPOINTMENT_NOT_FOUND') {
+        return res.status(404).json({ message: 'Appointment not found' });
+      }
+      
+      if (error.message === 'APPOINTMENT_CONFLICT') {
+        return res.status(409).json({
+          message: 'This time slot is already booked for the selected doctor. Please choose a different time.',
+          conflictType: 'time_slot_conflict'
+        });
+      }
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid appointment data provided.',
+          errors: error.errors 
+        });
+      }
+      
       res.status(400).json({ message: 'Failed to update appointment' });
     }
   });

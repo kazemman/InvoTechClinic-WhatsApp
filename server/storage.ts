@@ -6,7 +6,7 @@ import {
   type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, ne } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -32,6 +32,11 @@ export interface IStorage {
   getAppointmentsByDate(date: Date): Promise<Appointment[]>;
   getAppointmentsByDoctor(doctorId: string, date?: Date): Promise<Appointment[]>;
   getAppointmentsByPatient(patientId: string): Promise<Appointment[]>;
+  checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeAppointmentId?: string): Promise<boolean>;
+
+  // Transaction-based methods for race condition prevention
+  createAppointmentSafely(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointmentSafely(id: string, appointment: Partial<InsertAppointment>): Promise<Appointment>;
 
   // Check-in methods
   createCheckIn(checkIn: InsertCheckIn): Promise<CheckIn>;
@@ -144,6 +149,92 @@ export class DatabaseStorage implements IStorage {
     return updatedAppointment;
   }
 
+  // Transaction-based methods for race condition prevention
+  async createAppointmentSafely(insertAppointment: InsertAppointment): Promise<Appointment> {
+    return await db.transaction(async (tx) => {
+      // Normalize appointment time to 30-minute intervals
+      const normalizedTime = new Date(insertAppointment.appointmentDate);
+      const minutes = normalizedTime.getMinutes();
+      if (minutes < 30) {
+        normalizedTime.setMinutes(0, 0, 0);
+      } else {
+        normalizedTime.setMinutes(30, 0, 0);
+      }
+
+      // Check for conflicts within the transaction using FOR UPDATE to lock rows
+      const conflictingAppointments = await tx.select().from(appointments)
+        .where(and(
+          eq(appointments.doctorId, insertAppointment.doctorId),
+          eq(appointments.appointmentDate, normalizedTime),
+          sql`${appointments.status} IN ('scheduled', 'confirmed', 'in_progress')`
+        ))
+        .for('update'); // Lock the rows to prevent concurrent modifications
+
+      if (conflictingAppointments.length > 0) {
+        throw new Error('APPOINTMENT_CONFLICT');
+      }
+
+      // Create the appointment with normalized time
+      const appointmentData = { ...insertAppointment, appointmentDate: normalizedTime };
+      const [appointment] = await tx.insert(appointments).values(appointmentData).returning();
+      return appointment;
+    });
+  }
+
+  async updateAppointmentSafely(id: string, appointmentUpdate: Partial<InsertAppointment>): Promise<Appointment> {
+    return await db.transaction(async (tx) => {
+      // Get current appointment with lock
+      const [currentAppointment] = await tx.select().from(appointments)
+        .where(eq(appointments.id, id))
+        .for('update'); // Lock the appointment row
+
+      if (!currentAppointment) {
+        throw new Error('APPOINTMENT_NOT_FOUND');
+      }
+
+      // Determine effective doctor ID and appointment date
+      const effectiveDoctorId = appointmentUpdate.doctorId || currentAppointment.doctorId;
+      const effectiveAppointmentDate = appointmentUpdate.appointmentDate || currentAppointment.appointmentDate;
+
+      // Normalize the effective appointment time
+      const normalizedTime = new Date(effectiveAppointmentDate);
+      const minutes = normalizedTime.getMinutes();
+      if (minutes < 30) {
+        normalizedTime.setMinutes(0, 0, 0);
+      } else {
+        normalizedTime.setMinutes(30, 0, 0);
+      }
+
+      // Check for conflicts, excluding current appointment
+      const conflictingAppointments = await tx.select().from(appointments)
+        .where(and(
+          eq(appointments.doctorId, effectiveDoctorId),
+          eq(appointments.appointmentDate, normalizedTime),
+          ne(appointments.id, id),
+          sql`${appointments.status} IN ('scheduled', 'confirmed', 'in_progress')`
+        ))
+        .for('update'); // Lock the conflicting rows
+
+      if (conflictingAppointments.length > 0) {
+        throw new Error('APPOINTMENT_CONFLICT');
+      }
+
+      // Apply time normalization to the update data if appointmentDate is being changed
+      const finalUpdate = { ...appointmentUpdate };
+      if (appointmentUpdate.appointmentDate) {
+        finalUpdate.appointmentDate = normalizedTime;
+      }
+
+      // Update the appointment
+      const [updatedAppointment] = await tx.update(appointments)
+        .set(finalUpdate)
+        .where(eq(appointments.id, id))
+        .returning();
+
+      return updatedAppointment;
+    });
+  }
+
   async getAppointmentsByDate(date: Date): Promise<Appointment[]> {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
@@ -183,6 +274,39 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(appointments)
       .where(eq(appointments.patientId, patientId))
       .orderBy(desc(appointments.appointmentDate));
+  }
+
+  async checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeAppointmentId?: string): Promise<boolean> {
+    // Ensure appointment time is normalized to 30-minute intervals
+    const normalizedTime = new Date(appointmentDate);
+    const minutes = normalizedTime.getMinutes();
+    if (minutes < 30) {
+      normalizedTime.setMinutes(0, 0, 0);
+    } else {
+      normalizedTime.setMinutes(30, 0, 0);
+    }
+
+    // Since all appointment times are normalized to :00 or :30, 
+    // we can check for exact equality on the normalized time
+    let whereConditions = and(
+      eq(appointments.doctorId, doctorId),
+      eq(appointments.appointmentDate, normalizedTime),
+      sql`${appointments.status} IN ('scheduled', 'confirmed', 'in_progress')`
+    );
+
+    // Exclude specific appointment if provided (for updates)
+    if (excludeAppointmentId) {
+      whereConditions = and(
+        whereConditions,
+        ne(appointments.id, excludeAppointmentId)
+      );
+    }
+
+    const conflictingAppointments = await db.select().from(appointments)
+      .where(whereConditions)
+      .limit(1);
+
+    return conflictingAppointments.length > 0;
   }
 
   // Check-in methods
