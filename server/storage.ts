@@ -32,6 +32,7 @@ export interface IStorage {
   getAppointmentsByDate(date: Date): Promise<Appointment[]>;
   getAppointmentsByDoctor(doctorId: string, date?: Date): Promise<Appointment[]>;
   getAppointmentsByPatient(patientId: string): Promise<Appointment[]>;
+  getAllAppointments(): Promise<Appointment[]>;
   checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeAppointmentId?: string): Promise<boolean>;
 
   // Transaction-based methods for race condition prevention
@@ -273,6 +274,11 @@ export class DatabaseStorage implements IStorage {
   async getAppointmentsByPatient(patientId: string): Promise<Appointment[]> {
     return await db.select().from(appointments)
       .where(eq(appointments.patientId, patientId))
+      .orderBy(desc(appointments.appointmentDate));
+  }
+
+  async getAllAppointments(): Promise<Appointment[]> {
+    return await db.select().from(appointments)
       .orderBy(desc(appointments.appointmentDate));
   }
 

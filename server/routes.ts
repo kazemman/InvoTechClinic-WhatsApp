@@ -392,6 +392,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all appointments for conflict checking
+  app.get('/api/appointments/all', authenticateToken, async (req, res) => {
+    try {
+      const appointments = await storage.getAllAppointments();
+      res.json(appointments);
+    } catch (error) {
+      console.error('Failed to fetch all appointments:', error);
+      res.status(500).json({ message: 'Failed to fetch appointments' });
+    }
+  });
+
   app.post('/api/appointments', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       console.log('Appointment creation request body:', JSON.stringify(req.body, null, 2));

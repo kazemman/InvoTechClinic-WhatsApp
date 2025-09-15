@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,14 +15,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Calendar, Clock, User, CalendarPlus, Search, X } from 'lucide-react';
+import { Calendar, Clock, User, CalendarPlus, Search, X, AlertTriangle } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Appointments() {
   const [selectedTab, setSelectedTab] = useState('today');
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [showPatientResults, setShowPatientResults] = useState(false);
+  const [timeConflictError, setTimeConflictError] = useState<string>('');
   
   // Helper function to convert Date to local YYYY-MM-DD format without UTC conversion
   const toLocalDateString = (date: Date) => {
@@ -56,6 +58,71 @@ export default function Appointments() {
     },
   });
 
+  // Watch form values for real-time conflict checking
+  const watchedDoctorId = form.watch('doctorId');
+  const watchedAppointmentDate = form.watch('appointmentDate');
+
+  // Get all appointments for conflict checking (not just today/tomorrow)
+  const { data: allAppointments } = useQuery({
+    queryKey: ['/api/appointments/all'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/appointments/all');
+      return res.json();
+    },
+  });
+
+  // Check for appointment conflicts in real-time
+  const appointmentConflict = useMemo(() => {
+    if (!watchedDoctorId || !watchedAppointmentDate || !allAppointments) {
+      return null;
+    }
+
+    const selectedDateTime = new Date(watchedAppointmentDate);
+    const selectedTime = selectedDateTime.getTime();
+
+    // Find conflicting appointments for the same doctor at the same time
+    const conflict = allAppointments.find((appointment: any) => {
+      // Only check active appointments (not cancelled or completed)
+      if (['cancelled', 'completed'].includes(appointment.status)) {
+        return false;
+      }
+
+      // Check if same doctor and same time slot
+      const appointmentDateTime = new Date(appointment.appointmentDate);
+      const appointmentTime = appointmentDateTime.getTime();
+
+      return (
+        appointment.doctorId === watchedDoctorId &&
+        appointmentTime === selectedTime
+      );
+    });
+
+    return conflict;
+  }, [watchedDoctorId, watchedAppointmentDate, allAppointments]);
+
+  const { data: doctors } = useQuery({
+    queryKey: ['/api/users'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/users');
+      const users = await res.json();
+      return users.filter((user: any) => user.role === 'doctor');
+    },
+  });
+
+  // Update conflict error state when conflict status changes
+  useEffect(() => {
+    if (appointmentConflict) {
+      const conflictDoctor = doctors?.find((d: any) => d.id === appointmentConflict.doctorId);
+      const conflictTime = formatTime(appointmentConflict.appointmentDate);
+      const conflictDate = formatDate(appointmentConflict.appointmentDate);
+      setTimeConflictError(
+        `This time slot (${conflictTime} on ${conflictDate}) is already booked for Dr. ${conflictDoctor?.name || 'Unknown'}. Please select a different time.`
+      );
+    } else {
+      setTimeConflictError('');
+    }
+  }, [appointmentConflict, doctors]);
+
   const { data: appointments } = useQuery({
     queryKey: ['/api/appointments', selectedDate],
     queryFn: async () => {
@@ -72,15 +139,6 @@ export default function Appointments() {
       return res.json();
     },
     enabled: patientSearchQuery.length > 2,
-  });
-
-  const { data: doctors } = useQuery({
-    queryKey: ['/api/users'],
-    queryFn: async () => {
-      const res = await apiRequest('GET', '/api/users');
-      const users = await res.json();
-      return users.filter((user: any) => user.role === 'doctor');
-    },
   });
 
   const createAppointmentMutation = useMutation({
@@ -100,10 +158,11 @@ export default function Appointments() {
         appointmentType: '',
         notes: '',
       });
-      // Clear patient selection state
+      // Clear patient selection state and conflict error
       setSelectedPatient(null);
       setPatientSearchQuery('');
       setShowPatientResults(false);
+      setTimeConflictError('');
       queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
     },
@@ -333,6 +392,14 @@ export default function Appointments() {
                       <p className="text-xs text-muted-foreground mt-1">
                         Appointments can only be scheduled at 30-minute intervals (:00 or :30)
                       </p>
+                      {timeConflictError && (
+                        <Alert className="mt-2 border-destructive/50 text-destructive" data-testid="alert-time-conflict">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription className="text-sm">
+                            {timeConflictError}
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -386,11 +453,17 @@ export default function Appointments() {
                 <Button 
                   type="submit" 
                   className="w-full" 
-                  disabled={createAppointmentMutation.isPending}
+                  disabled={createAppointmentMutation.isPending || !!timeConflictError}
                   data-testid="button-schedule-appointment"
                 >
-                  {createAppointmentMutation.isPending ? 'Scheduling...' : 'Schedule Appointment'}
+                  {createAppointmentMutation.isPending ? 'Scheduling...' : 
+                   timeConflictError ? 'Time Slot Conflict' : 'Schedule Appointment'}
                 </Button>
+                {timeConflictError && (
+                  <p className="text-xs text-muted-foreground text-center mt-2" data-testid="text-conflict-help">
+                    Please resolve the time conflict before scheduling
+                  </p>
+                )}
               </form>
             </Form>
           </CardContent>
