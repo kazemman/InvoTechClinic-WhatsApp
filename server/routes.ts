@@ -623,6 +623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Auto-create medical aid claim if payment method includes medical aid
       if (checkIn.paymentMethod === 'medical_aid' || checkIn.paymentMethod === 'both') {
+        console.log('📋 Creating medical aid claim for payment method:', checkIn.paymentMethod);
         try {
           const medicalAidClaimData = {
             patientId: checkIn.patientId,
@@ -630,7 +631,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: 'pending' as const,
             notes: 'Auto-created claim from check-in process'
           };
-          await storage.createMedicalAidClaim(medicalAidClaimData);
+          console.log('📋 Medical aid claim data:', medicalAidClaimData);
+          const createdClaim = await storage.createMedicalAidClaim(medicalAidClaimData);
+          console.log('✅ Successfully created medical aid claim:', createdClaim.id);
           
           // Log medical aid claim creation
           if (req.user) {
@@ -642,12 +645,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch (claimError) {
           // Log error but don't fail the entire check-in process
-          console.error('Failed to create medical aid claim:', claimError);
+          console.error('❌ Failed to create medical aid claim:', claimError);
+          console.error('❌ Error details:', claimError.message, claimError.stack);
           if (req.user) {
             await storage.createActivityLog({
               userId: req.user.id,
               action: 'medical_aid_claim_error',
-              details: `Failed to auto-create medical aid claim for patient ID: ${checkIn.patientId}`
+              details: `Failed to auto-create medical aid claim for patient ID: ${checkIn.patientId}. Error: ${claimError.message}`
             });
           }
         }
