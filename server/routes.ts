@@ -741,13 +741,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { doctorId } = req.query;
       let queueItems;
+      console.log('🔍 Queue API called with doctorId:', doctorId);
 
       if (doctorId && typeof doctorId === 'string') {
         queueItems = await storage.getQueueByDoctor(doctorId);
+        console.log('🔍 Queue items by doctor:', queueItems.length, 'items');
       } else {
         queueItems = await storage.getQueue();
+        console.log('🔍 All queue items:', queueItems.length, 'items');
       }
 
+      console.log('🔍 Queue data being returned:', JSON.stringify(queueItems, null, 2));
       res.json(queueItems);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch queue' });
