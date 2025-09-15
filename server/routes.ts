@@ -394,8 +394,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/appointments', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const appointmentData = insertAppointmentSchema.parse(req.body);
+      console.log('Appointment creation request body:', JSON.stringify(req.body, null, 2));
+      
+      // Transform date strings to Date objects if needed
+      const bodyData = { ...req.body };
+      if (bodyData.appointmentDate && typeof bodyData.appointmentDate === 'string') {
+        bodyData.appointmentDate = new Date(bodyData.appointmentDate);
+      }
+      
+      console.log('Transformed appointment data:', JSON.stringify(bodyData, null, 2));
+      
+      const appointmentData = insertAppointmentSchema.parse(bodyData);
+      console.log('Validated appointment data:', JSON.stringify(appointmentData, null, 2));
+      
       const appointment = await storage.createAppointment(appointmentData);
+      console.log('Created appointment:', JSON.stringify(appointment, null, 2));
 
       // Log activity
       if (req.user) {
@@ -407,8 +420,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.status(201).json(appointment);
-    } catch (error) {
-      res.status(400).json({ message: 'Failed to create appointment' });
+    } catch (error: any) {
+      console.error('Appointment creation error:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        console.error('Zod validation errors:', error.errors);
+        return res.status(400).json({ 
+          message: 'Invalid appointment data provided.',
+          errors: error.errors 
+        });
+      }
+      
+      // Handle database constraint errors
+      if (error.code === '23505' || error.message?.includes('unique')) {
+        return res.status(409).json({ 
+          message: 'Appointment conflicts with existing data.' 
+        });
+      }
+      
+      // Handle other database errors
+      if (error.code?.startsWith('23')) {
+        return res.status(400).json({ 
+          message: 'Database constraint violation.',
+          details: error.message 
+        });
+      }
+      
+      res.status(400).json({ 
+        message: 'Failed to create appointment',
+        error: error.message 
+      });
     }
   });
 
