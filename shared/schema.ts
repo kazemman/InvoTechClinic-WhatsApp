@@ -59,6 +59,7 @@ export const checkIns = pgTable("check_ins", {
   checkInTime: timestamp("check_in_time").defaultNow().notNull(),
   paymentMethod: paymentMethodEnum("payment_method").notNull(),
   isWalkIn: boolean("is_walk_in").default(false).notNull(),
+  notes: text("notes"),
 });
 
 export const queue = pgTable("queue", {

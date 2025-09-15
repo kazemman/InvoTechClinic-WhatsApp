@@ -643,6 +643,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check-in GET route
+  app.get('/api/checkins', authenticateToken, async (req, res) => {
+    try {
+      const { date } = req.query;
+      
+      if (date && typeof date === 'string') {
+        const checkInDate = new Date(date);
+        const checkIns = await storage.getCheckInsByDate(checkInDate);
+        res.json(checkIns);
+      } else {
+        // If no date provided, return empty array or all check-ins for today
+        const today = new Date();
+        const checkIns = await storage.getCheckInsByDate(today);
+        res.json(checkIns);
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch check-ins' });
+    }
+  });
+
   // Queue routes
   app.get('/api/queue', authenticateToken, async (req, res) => {
     try {

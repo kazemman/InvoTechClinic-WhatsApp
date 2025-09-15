@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
 import { Search, ClipboardCheck, Clock, User, AlertCircle } from 'lucide-react';
 import { z } from 'zod';
 
@@ -26,7 +27,8 @@ export default function CheckIn() {
   const checkInFormSchema = insertCheckInSchema.extend({
     doctorId: z.string().min(1, 'Doctor is required'),
     priority: z.number().default(0),
-    paymentAmount: z.coerce.number().optional()
+    paymentAmount: z.coerce.number().optional(),
+    notes: z.string().optional()
   }).superRefine((data, ctx) => {
     // Require payment amount for cash and both payment methods
     if ((data.paymentMethod === 'cash' || data.paymentMethod === 'both') && !data.paymentAmount) {
@@ -59,7 +61,7 @@ export default function CheckIn() {
     }
   });
 
-  const form = useForm<InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number }>({
+  const form = useForm<InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number; notes?: string }>({
     resolver: zodResolver(checkInFormSchema),
     defaultValues: {
       patientId: '',
@@ -69,6 +71,7 @@ export default function CheckIn() {
       doctorId: '',
       priority: 0,
       paymentAmount: undefined,
+      notes: '',
     },
   });
 
@@ -94,6 +97,15 @@ export default function CheckIn() {
     },
   });
 
+  const { data: todayCheckIns } = useQuery({
+    queryKey: ['/api/checkins', new Date().toISOString().split('T')[0]],
+    queryFn: async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const res = await apiRequest('GET', `/api/checkins?date=${today}`);
+      return res.json();
+    },
+  });
+
   const { data: doctors } = useQuery({
     queryKey: ['/api/users'],
     queryFn: async () => {
@@ -112,7 +124,7 @@ export default function CheckIn() {
   });
 
   const checkInMutation = useMutation({
-    mutationFn: async (data: InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number }) => {
+    mutationFn: async (data: InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number; notes?: string }) => {
       const res = await apiRequest('POST', '/api/checkins', data);
       return res.json();
     },
@@ -217,8 +229,8 @@ export default function CheckIn() {
     selectPatient(appointment.patient, appointment.id, appointment.doctorId);
   };
 
-  const onSubmit = (data: InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number }) => {
-    // Include all form data including payment amount
+  const onSubmit = (data: InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number; notes?: string }) => {
+    // Include all form data including payment amount and notes
     checkInMutation.mutate(data);
   };
 
@@ -315,7 +327,17 @@ export default function CheckIn() {
                 {todayAppointments && todayAppointments.length > 0 ? (
                   <div className="border rounded-lg max-h-96 overflow-y-auto">
                     {todayAppointments
-                      .filter((appointment: any) => appointment.status !== 'cancelled' && appointment.status !== 'completed')
+                      .filter((appointment: any) => {
+                        // Filter out cancelled and completed appointments
+                        if (appointment.status === 'cancelled' || appointment.status === 'completed') {
+                          return false;
+                        }
+                        // Filter out patients who are already checked in today
+                        const isCheckedIn = todayCheckIns?.some((checkIn: any) => 
+                          checkIn.patientId === appointment.patientId
+                        );
+                        return !isCheckedIn;
+                      })
                       .map((appointment: any) => (
                       <div
                         key={appointment.id}
@@ -362,7 +384,8 @@ export default function CheckIn() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground border rounded-lg" data-testid="text-no-appointments">
                     <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>No appointments scheduled for today</p>
+                    <p>No available appointments for today</p>
+                    <p className="text-xs mt-1">(All patients may be checked in already)</p>
                   </div>
                 )}
               </div>
@@ -508,6 +531,26 @@ export default function CheckIn() {
                           <SelectItem value="2">Urgent</SelectItem>
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Notes Field */}
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Additional Notes</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Any additional information or notes..."
+                          {...field}
+                          data-testid="textarea-notes"
+                          rows={3}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
