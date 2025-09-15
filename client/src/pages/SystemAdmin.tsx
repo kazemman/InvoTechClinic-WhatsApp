@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/auth';
+import { formatDate, formatDateTime } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import {
   Shield, Activity, Database, Server, 
   Settings, Users, FileText, Clock,
   CheckCircle, AlertCircle, HardDrive,
-  Wifi, Globe, Lock
+  Wifi, Globe, Lock, Calendar
 } from 'lucide-react';
 
 export default function SystemAdmin() {
@@ -320,7 +321,7 @@ export default function SystemAdmin() {
                             {log.action.replace('_', ' ').toUpperCase()}
                           </span>
                           <span className="text-sm text-muted-foreground">
-                            {new Date(log.timestamp).toLocaleString()}
+                            {formatDateTime(log.timestamp)}
                           </span>
                         </div>
                         <p className="text-sm text-foreground mt-1" data-testid={`log-entry-${log.id}`}>
@@ -400,7 +401,7 @@ export default function SystemAdmin() {
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {lastActivity 
-                              ? `Last: ${new Date(lastActivity.timestamp).toLocaleDateString()}`
+                              ? `Last: ${formatDate(lastActivity.timestamp)}`
                               : 'No activity'
                             }
                           </p>

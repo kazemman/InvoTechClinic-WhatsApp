@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { insertCheckInSchema, type InsertCheckIn } from '@shared/schema';
 import { apiRequest } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { formatTime } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -344,10 +345,7 @@ export default function CheckIn() {
                           {checkIn.patient?.firstName} {checkIn.patient?.lastName}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(checkIn.checkInTime).toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
+                          {formatTime(checkIn.checkInTime)}
                         </p>
                       </div>
                     </div>

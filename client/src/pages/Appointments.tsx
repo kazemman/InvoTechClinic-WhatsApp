@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { insertAppointmentSchema, type InsertAppointment } from '@shared/schema';
 import { apiRequest } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { formatDate, formatTime } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -395,10 +396,7 @@ export default function Appointments() {
                       <div className="flex items-center gap-4">
                         <div className="text-center min-w-[60px]">
                           <div className="text-lg font-bold text-foreground">
-                            {new Date(appointment.appointmentDate).toLocaleTimeString([], { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
+                            {formatTime(appointment.appointmentDate)}
                           </div>
                         </div>
                         <div className="flex-1">
@@ -453,7 +451,7 @@ export default function Appointments() {
                 ))
               ) : (
                 <div className="text-center py-8 text-muted-foreground" data-testid="text-no-appointments">
-                  No appointments scheduled for {new Date(selectedDate).toLocaleDateString()}
+                  No appointments scheduled for {formatDate(selectedDate)}
                 </div>
               )}
             </div>

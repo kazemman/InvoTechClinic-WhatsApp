@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { insertConsultationSchema, type InsertConsultation } from '@shared/schema';
 import { apiRequest } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { formatDate, formatTime } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -278,7 +279,7 @@ export default function DoctorPage() {
                       </h3>
                       <p className="text-muted-foreground">{selectedPatient.phone}</p>
                       <p className="text-sm text-muted-foreground">
-                        DOB: {new Date(selectedPatient.dateOfBirth).toLocaleDateString()}
+                        DOB: {formatDate(selectedPatient.dateOfBirth)}
                       </p>
                     </div>
                   </div>
@@ -310,6 +311,7 @@ export default function DoctorPage() {
                             <FormControl>
                               <Textarea 
                                 {...field} 
+                                value={field.value || ''}
                                 placeholder="Patient symptoms, examination findings..."
                                 className="min-h-[100px]"
                                 data-testid="input-consultation-notes"
@@ -329,6 +331,7 @@ export default function DoctorPage() {
                             <FormControl>
                               <Textarea 
                                 {...field} 
+                                value={field.value || ''}
                                 placeholder="Medical diagnosis and assessment..."
                                 data-testid="input-diagnosis"
                               />
@@ -347,6 +350,7 @@ export default function DoctorPage() {
                             <FormControl>
                               <Textarea 
                                 {...field} 
+                                value={field.value || ''}
                                 placeholder="Medications, dosage, instructions..."
                                 data-testid="input-prescription"
                               />
@@ -365,6 +369,7 @@ export default function DoctorPage() {
                             <FormControl>
                               <Textarea 
                                 {...field} 
+                                value={field.value || ''}
                                 placeholder="Specialist referrals, recommendations..."
                                 data-testid="input-referrals"
                               />
@@ -383,6 +388,7 @@ export default function DoctorPage() {
                             <FormControl>
                               <Textarea 
                                 {...field} 
+                                value={field.value || ''}
                                 placeholder="File references, additional notes..."
                                 data-testid="input-attachments"
                               />
@@ -412,13 +418,10 @@ export default function DoctorPage() {
                           <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
                               <CardTitle className="text-base">
-                                Consultation - {new Date(consultation.consultationDate).toLocaleDateString()}
+                                Consultation - {formatDate(consultation.consultationDate)}
                               </CardTitle>
                               <span className="text-sm text-muted-foreground">
-                                {new Date(consultation.consultationDate).toLocaleTimeString([], { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit' 
-                                })}
+                                {formatTime(consultation.consultationDate)}
                               </span>
                             </div>
                           </CardHeader>

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { insertUserSchema, type InsertUser } from '@shared/schema';
 import { apiRequest } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { formatDate } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -399,7 +400,7 @@ export default function UserManagement() {
                           </div>
                           
                           <div className="text-xs text-muted-foreground mt-1">
-                            Created: {new Date(user.createdAt).toLocaleDateString()}
+                            Created: {formatDate(user.createdAt)}
                           </div>
                         </div>
                       </div>
