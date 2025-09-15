@@ -399,16 +399,45 @@ export default function Appointments() {
                 <Calendar className="w-5 h-5" />
                 Appointments Schedule
               </CardTitle>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-auto"
-                data-testid="input-date-filter"
-              />
+              <div className="flex items-center gap-3">
+                <div className="flex gap-2">
+                  <Button
+                    variant={isToday ? "default" : "outline"}
+                    size="sm"
+                    onClick={setToday}
+                    data-testid="button-today"
+                    className="flex items-center gap-1"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Today
+                  </Button>
+                  <Button
+                    variant={isTomorrow ? "default" : "outline"}
+                    size="sm"
+                    onClick={setTomorrow}
+                    data-testid="button-tomorrow"
+                    className="flex items-center gap-1"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Tomorrow
+                  </Button>
+                </div>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-auto"
+                  data-testid="input-date-filter"
+                />
+              </div>
             </div>
-            <CardDescription>
-              Manage and track appointment status
+            <CardDescription className="flex items-center justify-between">
+              <span>Manage and track appointment status</span>
+              <span className="text-sm font-medium">
+                Viewing: {formatDate(selectedDate)}
+                {isToday && " (Today)"}
+                {isTomorrow && " (Tomorrow)"}
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent>
