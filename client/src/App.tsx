@@ -64,7 +64,7 @@ function Router() {
       </Route>
       
       <Route path="/doctor">
-        <ProtectedRoute requiredRoles={['doctor']}>
+        <ProtectedRoute requiredRoles={['doctor', 'admin']}>
           <Layout>
             <DoctorPage />
           </Layout>
