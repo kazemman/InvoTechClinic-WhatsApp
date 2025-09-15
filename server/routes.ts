@@ -578,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const paymentData = insertPaymentSchema.parse({
           patientId: checkIn.patientId,
           checkInId: checkIn.id,
-          amount: paymentAmount.toString(), // Convert to string for decimal storage
+          amount: paymentAmount, // Schema handles coercion to string
           paymentMethod: checkIn.paymentMethod
         });
         await storage.createPayment(paymentData);

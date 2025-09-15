@@ -27,11 +27,11 @@ export default function CheckIn() {
   const checkInFormSchema = insertCheckInSchema.extend({
     doctorId: z.string().min(1, 'Doctor is required'),
     priority: z.number().default(0),
-    paymentAmount: z.coerce.number().optional(),
-    notes: z.string().optional()
+    paymentAmount: z.coerce.number().default(0),
+    notes: z.string().default('')
   }).superRefine((data, ctx) => {
     // Require payment amount for cash and both payment methods
-    if ((data.paymentMethod === 'cash' || data.paymentMethod === 'both') && !data.paymentAmount) {
+    if ((data.paymentMethod === 'cash' || data.paymentMethod === 'both') && (!data.paymentAmount || data.paymentAmount <= 0)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Payment amount is required for cash payments',
@@ -40,10 +40,10 @@ export default function CheckIn() {
     }
     
     // Validate positive amount when provided
-    if (data.paymentAmount !== undefined && data.paymentAmount <= 0) {
+    if (data.paymentAmount !== undefined && data.paymentAmount < 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Payment amount must be greater than 0',
+        message: 'Payment amount cannot be negative',
         path: ['paymentAmount'],
       });
     }
@@ -61,7 +61,7 @@ export default function CheckIn() {
     }
   });
 
-  const form = useForm<InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number; notes?: string }>({
+  const form = useForm<InsertCheckIn & { doctorId: string; priority: number; paymentAmount: number; notes: string }>({
     resolver: zodResolver(checkInFormSchema),
     defaultValues: {
       patientId: '',
@@ -70,7 +70,7 @@ export default function CheckIn() {
       isWalkIn: false,
       doctorId: '',
       priority: 0,
-      paymentAmount: undefined,
+      paymentAmount: 0,
       notes: '',
     },
   });
@@ -188,7 +188,7 @@ export default function CheckIn() {
     // Reset payment method if switching to patient without medical aid and current method requires medical aid
     if (!patientHasMedicalAid && (currentPaymentMethod === 'medical_aid' || currentPaymentMethod === 'both')) {
       form.setValue('paymentMethod', 'cash');
-      form.setValue('paymentAmount', undefined);
+      form.setValue('paymentAmount', 0);
       
       // Show toast notification when auto-resetting payment method
       if (previousPatient) {
@@ -229,9 +229,13 @@ export default function CheckIn() {
     selectPatient(appointment.patient, appointment.id, appointment.doctorId);
   };
 
-  const onSubmit = (data: InsertCheckIn & { doctorId: string; priority: number; paymentAmount?: number; notes?: string }) => {
-    // Include all form data including payment amount and notes
-    checkInMutation.mutate(data);
+  const onSubmit = (data: InsertCheckIn & { doctorId: string; priority: number; paymentAmount: number; notes: string }) => {
+    // Send paymentAmount as number - backend schema handles type conversion
+    const submitData = {
+      ...data,
+      paymentAmount: data.paymentAmount > 0 ? data.paymentAmount : undefined
+    };
+    checkInMutation.mutate(submitData);
   };
 
   const getPaymentMethodIcon = (method: string) => {
@@ -503,7 +507,8 @@ export default function CheckIn() {
                             step="0.01"
                             placeholder="0.00"
                             {...field}
-                            onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
+                            value={field.value || ''}
+                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                             data-testid="input-payment-amount"
                           />
                         </FormControl>

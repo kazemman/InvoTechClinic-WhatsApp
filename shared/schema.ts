@@ -215,6 +215,15 @@ export const insertConsultationSchema = createInsertSchema(consultations).omit({
 export const insertPaymentSchema = createInsertSchema(payments).omit({
   id: true,
   paymentDate: true,
+}).extend({
+  amount: z.union([z.number(), z.string()]).transform((val) => {
+    // Convert both numbers and strings to string format for database storage
+    const numVal = typeof val === 'number' ? val : parseFloat(val);
+    if (isNaN(numVal) || numVal <= 0) {
+      throw new Error('Amount must be a positive number');
+    }
+    return numVal.toString();
+  })
 });
 
 export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
