@@ -4,7 +4,7 @@ import { apiRequest, logout } from '@/lib/auth';
 import { 
   LayoutDashboard, UserPlus, Calendar, ClipboardCheck, 
   Users, UserRound, TrendingUp, Settings, Shield,
-  Hospital, X
+  Hospital, X, CreditCard
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -41,6 +41,7 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
     { icon: ClipboardCheck, label: 'Check-in', path: '/checkin', roles: ['staff', 'admin'] },
     { icon: Users, label: 'Queue Management', path: '/queue', roles: ['staff', 'admin', 'doctor'] },
     { icon: UserRound, label: "Doctor's Page", path: '/doctor', roles: ['doctor'] },
+    { icon: CreditCard, label: 'Medical Aid Claims', path: '/medical-aid', roles: ['staff', 'admin'] },
     { icon: TrendingUp, label: 'Business Insights', path: '/insights', roles: ['admin'] },
     { icon: Settings, label: 'User Management', path: '/users', roles: ['admin'] },
     { icon: Shield, label: 'System Admin', path: '/admin', roles: ['admin'] },

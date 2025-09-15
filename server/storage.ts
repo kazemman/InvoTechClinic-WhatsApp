@@ -1,10 +1,10 @@
 import { 
-  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments,
+  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims,
   type User, type InsertUser, type Patient, type InsertPatient, 
   type Appointment, type InsertAppointment, type CheckIn, type InsertCheckIn,
   type Queue, type InsertQueue, type Consultation, type InsertConsultation,
   type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog,
-  type MedicalAttachment, type InsertMedicalAttachment
+  type MedicalAttachment, type InsertMedicalAttachment, type MedicalAidClaim, type InsertMedicalAidClaim
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
@@ -68,6 +68,11 @@ export interface IStorage {
   deleteMedicalAttachment(id: string): Promise<void>;
   getMedicalAttachment(id: string): Promise<MedicalAttachment | undefined>;
   deleteMedicalAttachmentsByConsultation(consultationId: string): Promise<void>;
+
+  // Medical aid claim methods
+  createMedicalAidClaim(claim: InsertMedicalAidClaim): Promise<MedicalAidClaim>;
+  getAllMedicalAidClaims(): Promise<MedicalAidClaim[]>;
+  updateMedicalAidClaim(id: string, claim: Partial<InsertMedicalAidClaim>): Promise<MedicalAidClaim>;
 
   // Dashboard stats
   getDashboardStats(date: Date): Promise<{
@@ -469,6 +474,42 @@ export class DatabaseStorage implements IStorage {
     
     // Then delete the consultation record
     await db.delete(consultations).where(eq(consultations.id, id));
+  }
+
+  // Medical aid claim methods
+  async createMedicalAidClaim(insertClaim: InsertMedicalAidClaim): Promise<MedicalAidClaim> {
+    const [claim] = await db.insert(medicalAidClaims).values(insertClaim).returning();
+    return claim;
+  }
+
+  async getAllMedicalAidClaims(): Promise<MedicalAidClaim[]> {
+    return await db.query.medicalAidClaims.findMany({
+      with: {
+        patient: {
+          columns: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            medicalAidScheme: true,
+            medicalAidNumber: true,
+            phone: true
+          }
+        },
+        checkIn: {
+          columns: {
+            id: true,
+            checkInTime: true,
+            paymentMethod: true
+          }
+        }
+      },
+      orderBy: desc(medicalAidClaims.createdAt)
+    });
+  }
+
+  async updateMedicalAidClaim(id: string, claim: Partial<InsertMedicalAidClaim>): Promise<MedicalAidClaim> {
+    const [updatedClaim] = await db.update(medicalAidClaims).set(claim).where(eq(medicalAidClaims.id, id)).returning();
+    return updatedClaim;
   }
 
   // Dashboard stats

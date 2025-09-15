@@ -9,6 +9,7 @@ export const appointmentStatusEnum = pgEnum("appointment_status", ["scheduled", 
 export const queueStatusEnum = pgEnum("queue_status", ["waiting", "in_progress", "completed"]);
 export const paymentMethodEnum = pgEnum("payment_method", ["cash", "medical_aid", "both"]);
 export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
+export const medicalAidClaimStatusEnum = pgEnum("medical_aid_claim_status", ["pending", "submitted", "approved", "rejected"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -121,6 +122,24 @@ export const activityLogs = pgTable("activity_logs", {
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
+export const medicalAidClaims = pgTable("medical_aid_claims", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  patientId: varchar("patient_id").notNull().references(() => patients.id),
+  checkInId: varchar("check_in_id").notNull().references(() => checkIns.id),
+  status: medicalAidClaimStatusEnum("status").default("pending").notNull(),
+  submittedAt: timestamp("submitted_at"),
+  approvedAt: timestamp("approved_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    // Unique constraint to ensure only one claim per check-in
+    uniqueCheckIn: uniqueIndex("unique_medical_aid_claim_check_in").on(table.checkInId),
+    // Index for performance when querying claims by patient
+    patientIdIdx: index("medical_aid_claims_patient_id_idx").on(table.patientId),
+  };
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   appointments: many(appointments),
@@ -135,6 +154,7 @@ export const patientsRelations = relations(patients, ({ many }) => ({
   queue: many(queue),
   consultations: many(consultations),
   payments: many(payments),
+  medicalAidClaims: many(medicalAidClaims),
 }));
 
 export const appointmentsRelations = relations(appointments, ({ one, many }) => ({
@@ -160,6 +180,10 @@ export const checkInsRelations = relations(checkIns, ({ one, many }) => ({
   }),
   queue: many(queue),
   payments: many(payments),
+  medicalAidClaim: one(medicalAidClaims, {
+    fields: [checkIns.id],
+    references: [medicalAidClaims.checkInId],
+  }),
 }));
 
 export const queueRelations = relations(queue, ({ one }) => ({
@@ -201,6 +225,17 @@ export const medicalAttachmentsRelations = relations(medicalAttachments, ({ one 
   uploadedByUser: one(users, {
     fields: [medicalAttachments.uploadedBy],
     references: [users.id],
+  }),
+}));
+
+export const medicalAidClaimsRelations = relations(medicalAidClaims, ({ one }) => ({
+  patient: one(patients, {
+    fields: [medicalAidClaims.patientId],
+    references: [patients.id],
+  }),
+  checkIn: one(checkIns, {
+    fields: [medicalAidClaims.checkInId],
+    references: [checkIns.id],
   }),
 }));
 
@@ -278,6 +313,18 @@ export const insertMedicalAttachmentSchema = createInsertSchema(medicalAttachmen
   uploadedAt: true,
 });
 
+export const insertMedicalAidClaimSchema = createInsertSchema(medicalAidClaims).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const updateMedicalAidClaimSchema = createInsertSchema(medicalAidClaims).pick({
+  status: true,
+  notes: true,
+  submittedAt: true,
+  approvedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -297,6 +344,8 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type MedicalAttachment = typeof medicalAttachments.$inferSelect;
 export type InsertMedicalAttachment = z.infer<typeof insertMedicalAttachmentSchema>;
+export type MedicalAidClaim = typeof medicalAidClaims.$inferSelect;
+export type InsertMedicalAidClaim = z.infer<typeof insertMedicalAidClaimSchema>;
 
 // Login schema
 export const loginSchema = z.object({

@@ -14,6 +14,7 @@ import DoctorPage from "@/pages/DoctorPage";
 import BusinessInsights from "@/pages/BusinessInsights";
 import UserManagement from "@/pages/UserManagement";
 import SystemAdmin from "@/pages/SystemAdmin";
+import MedicalAid from "@/pages/MedicalAid";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
 
@@ -66,6 +67,14 @@ function Router() {
         <ProtectedRoute requiredRoles={['doctor']}>
           <Layout>
             <DoctorPage />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/medical-aid">
+        <ProtectedRoute requiredRoles={['staff', 'admin']}>
+          <Layout>
+            <MedicalAid />
           </Layout>
         </ProtectedRoute>
       </Route>

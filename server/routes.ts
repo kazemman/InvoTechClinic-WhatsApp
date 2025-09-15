@@ -9,8 +9,9 @@ import {
   loginSchema, passwordResetSchema, insertUserSchema, insertPatientSchema, 
   insertAppointmentSchema, insertCheckInSchema, insertQueueSchema,
   insertConsultationSchema, insertPaymentSchema, insertActivityLogSchema,
-  insertMedicalAttachmentSchema
+  insertMedicalAttachmentSchema, insertMedicalAidClaimSchema, updateMedicalAidClaimSchema
 } from "@shared/schema";
+import { z } from "zod";
 import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, AuthenticatedRequest } from "./auth";
 
 // Configure multer for patient photo uploads
@@ -620,6 +621,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createPayment(paymentData);
       }
 
+      // Auto-create medical aid claim if payment method includes medical aid
+      if (checkIn.paymentMethod === 'medical_aid' || checkIn.paymentMethod === 'both') {
+        try {
+          const medicalAidClaimData = {
+            patientId: checkIn.patientId,
+            checkInId: checkIn.id,
+            status: 'pending' as const,
+            notes: 'Auto-created claim from check-in process'
+          };
+          await storage.createMedicalAidClaim(medicalAidClaimData);
+          
+          // Log medical aid claim creation
+          if (req.user) {
+            await storage.createActivityLog({
+              userId: req.user.id,
+              action: 'create_medical_aid_claim',
+              details: `Auto-created medical aid claim for patient ID: ${checkIn.patientId}`
+            });
+          }
+        } catch (claimError) {
+          // Log error but don't fail the entire check-in process
+          console.error('Failed to create medical aid claim:', claimError);
+          if (req.user) {
+            await storage.createActivityLog({
+              userId: req.user.id,
+              action: 'medical_aid_claim_error',
+              details: `Failed to auto-create medical aid claim for patient ID: ${checkIn.patientId}`
+            });
+          }
+        }
+      }
+
       // If there's an appointment, update its status to confirmed
       if (checkIn.appointmentId) {
         await storage.updateAppointment(checkIn.appointmentId, { status: 'confirmed' });
@@ -998,6 +1031,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(logs);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch activity logs' });
+    }
+  });
+
+  // Medical Aid Claims routes
+  app.get('/api/medical-aid-claims', authenticateToken, requireRole(['staff', 'admin']), async (req, res) => {
+    try {
+      const claims = await storage.getAllMedicalAidClaims();
+      res.json(claims);
+    } catch (error) {
+      console.error('Failed to fetch medical aid claims:', error);
+      res.status(500).json({ message: 'Failed to fetch medical aid claims' });
+    }
+  });
+
+  app.put('/api/medical-aid-claims/:id', authenticateToken, requireRole(['staff', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Use restricted schema for updates - only allow updating safe fields
+      const updateSchema = updateMedicalAidClaimSchema.partial().extend({
+        // When setting status to 'submitted', automatically set submittedAt to current time
+        // When setting status to 'approved', automatically set approvedAt to current time
+        submittedAt: z.coerce.date().optional(),
+        approvedAt: z.coerce.date().optional(),
+      });
+      
+      let claimData = updateSchema.parse(req.body);
+      
+      // Auto-set timestamps based on status changes
+      if (claimData.status === 'submitted' && !claimData.submittedAt) {
+        claimData.submittedAt = new Date();
+      }
+      if (claimData.status === 'approved' && !claimData.approvedAt) {
+        claimData.approvedAt = new Date();
+      }
+      
+      const updatedClaim = await storage.updateMedicalAidClaim(id, claimData);
+
+      // Log activity
+      if (req.user) {
+        await storage.createActivityLog({
+          userId: req.user.id,
+          action: 'update_medical_aid_claim',
+          details: `Updated medical aid claim status to: ${claimData.status || 'unknown'}`
+        });
+      }
+
+      res.json(updatedClaim);
+    } catch (error: any) {
+      console.error('Medical aid claim update error:', error);
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid claim data provided.',
+          errors: error.errors 
+        });
+      }
+      
+      res.status(400).json({ message: 'Failed to update medical aid claim' });
     }
   });
 
