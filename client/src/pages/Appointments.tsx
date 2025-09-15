@@ -24,6 +24,20 @@ export default function Appointments() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Helper functions for quick date selection
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  const setToday = () => setSelectedDate(getTodayDate());
+  const setTomorrow = () => setSelectedDate(getTomorrowDate());
+
+  const isToday = selectedDate === getTodayDate();
+  const isTomorrow = selectedDate === getTomorrowDate();
+
   const form = useForm<InsertAppointment>({
     resolver: zodResolver(insertAppointmentSchema),
     defaultValues: {

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, boolean, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -45,6 +45,11 @@ export const appointments = pgTable("appointments", {
   appointmentType: text("appointment_type").notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    // Unique constraint to prevent double-booking at database level
+    uniqueSlot: uniqueIndex("unique_doctor_appointment_slot").on(table.doctorId, table.appointmentDate),
+  };
 });
 
 export const checkIns = pgTable("check_ins", {
@@ -171,7 +176,15 @@ export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
 }).extend({
-  appointmentDate: z.date().refine(
+  appointmentDate: z.coerce.date().transform(
+    (date) => {
+      // Normalize appointment date by zeroing seconds and milliseconds
+      // This ensures consistent timestamps for conflict detection and database constraints
+      const normalizedDate = new Date(date);
+      normalizedDate.setSeconds(0, 0);
+      return normalizedDate;
+    }
+  ).refine(
     (date) => {
       // Ensure appointment is scheduled in 30-minute intervals
       const minutes = date.getMinutes();

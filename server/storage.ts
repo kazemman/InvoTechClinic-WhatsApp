@@ -187,9 +187,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeId?: string): Promise<boolean> {
+    // Normalize appointment date to ensure consistent comparisons
+    // Strip seconds and milliseconds for exact 30-minute slot matching
+    const slotStart = new Date(appointmentDate);
+    slotStart.setSeconds(0, 0);
+    
+    // Validate that the time is on a 30-minute boundary
+    const minutes = slotStart.getMinutes();
+    if (minutes !== 0 && minutes !== 30) {
+      throw new Error('Appointment time must be scheduled in 30-minute intervals');
+    }
+    
+    // Create the end of the 30-minute slot for range comparison
+    const slotEnd = new Date(slotStart);
+    slotEnd.setMinutes(slotEnd.getMinutes() + 30);
+    
+    // Use range comparison [slotStart, slotEnd) to catch any appointment within the slot
+    // This handles cases where stored appointments have non-zero seconds/milliseconds
     let whereConditions = and(
       eq(appointments.doctorId, doctorId),
-      eq(appointments.appointmentDate, appointmentDate),
+      gte(appointments.appointmentDate, slotStart),
+      sql`${appointments.appointmentDate} < ${slotEnd}`,
       sql`${appointments.status} NOT IN ('cancelled')`
     );
     

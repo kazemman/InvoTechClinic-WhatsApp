@@ -396,16 +396,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('Appointment creation request body:', JSON.stringify(req.body, null, 2));
       
-      // Transform date strings to Date objects if needed
-      const bodyData = { ...req.body };
-      if (bodyData.appointmentDate && typeof bodyData.appointmentDate === 'string') {
-        bodyData.appointmentDate = new Date(bodyData.appointmentDate);
-      }
-      
-      console.log('Transformed appointment data:', JSON.stringify(bodyData, null, 2));
-      
-      const appointmentData = insertAppointmentSchema.parse(bodyData);
-      console.log('Validated appointment data:', JSON.stringify(appointmentData, null, 2));
+      // Schema automatically normalizes dates via transform(), no manual conversion needed
+      const appointmentData = insertAppointmentSchema.parse(req.body);
+      console.log('Validated and normalized appointment data:', JSON.stringify(appointmentData, null, 2));
       
       // Check for appointment conflicts
       const hasConflict = await storage.checkAppointmentConflict(
@@ -452,10 +445,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Handle database constraint errors
+      // Handle database constraint errors (appointment slot conflicts)
       if (error.code === '23505' || error.message?.includes('unique')) {
         return res.status(409).json({ 
-          message: 'Appointment conflicts with existing data.' 
+          message: 'This doctor already has an appointment at the selected time. Please choose a different time slot.',
+          conflict: true
         });
       }
       
@@ -478,22 +472,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Transform date strings to Date objects if needed
-      const bodyData = { ...req.body };
-      if (bodyData.appointmentDate && typeof bodyData.appointmentDate === 'string') {
-        bodyData.appointmentDate = new Date(bodyData.appointmentDate);
+      // Schema automatically normalizes dates via transform(), no manual conversion needed
+      // Validate update data with partial schema
+      const updateSchema = insertAppointmentSchema.partial();
+      const validatedData = updateSchema.parse(req.body);
+      
+      // Fetch existing appointment to compute effective values
+      const existingAppointment = await storage.getAppointment(id);
+      if (!existingAppointment) {
+        return res.status(404).json({ message: 'Appointment not found' });
       }
       
-      // If updating appointment time and doctor, check for conflicts (excluding current appointment)
-      if (bodyData.doctorId && bodyData.appointmentDate) {
+      // Compute effective doctorId and appointmentDate (updated value || existing value)
+      const effectiveDoctorId = validatedData.doctorId || existingAppointment.doctorId;
+      const effectiveAppointmentDate = validatedData.appointmentDate || existingAppointment.appointmentDate;
+      
+      // Always check for conflicts when either doctorId or appointmentDate could change
+      if (validatedData.doctorId || validatedData.appointmentDate) {
         const hasConflict = await storage.checkAppointmentConflict(
-          bodyData.doctorId, 
-          bodyData.appointmentDate,
+          effectiveDoctorId, 
+          effectiveAppointmentDate,
           id // Exclude current appointment from conflict check
         );
         
         if (hasConflict) {
-          console.log('Appointment update conflict detected for doctor:', bodyData.doctorId, 'at time:', bodyData.appointmentDate);
+          console.log('Appointment update conflict detected for doctor:', effectiveDoctorId, 'at time:', effectiveAppointmentDate);
           return res.status(409).json({ 
             message: 'This doctor already has another appointment at the selected time. Please choose a different time slot.',
             conflict: true
@@ -501,7 +504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const appointment = await storage.updateAppointment(id, bodyData);
+      const appointment = await storage.updateAppointment(id, validatedData);
 
       // Log activity
       if (req.user) {
@@ -513,8 +516,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(appointment);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Appointment update error:', error);
+      
+      // Handle database constraint violations
+      if (error.code === '23505' || error.message?.includes('unique')) {
+        return res.status(409).json({ 
+          message: 'This doctor already has an appointment at the selected time. Please choose a different time slot.',
+          conflict: true
+        });
+      }
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid appointment data. Appointments must be scheduled in 30-minute slots.',
+          errors: error.errors 
+        });
+      }
+      
       res.status(400).json({ message: 'Failed to update appointment' });
     }
   });
