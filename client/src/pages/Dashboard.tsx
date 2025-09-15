@@ -31,8 +31,7 @@ export default function Dashboard() {
       return res.json();
     },
     retry: 2,
-    staleTime: 0, // Disable cache for debugging
-    cacheTime: 0, // Disable cache for debugging
+    staleTime: 30000, // 30 seconds
   });
 
   const { data: todayAppointments } = useQuery({

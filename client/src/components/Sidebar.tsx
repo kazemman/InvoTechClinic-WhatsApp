@@ -40,7 +40,7 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
     { icon: Calendar, label: 'Appointments', path: '/appointments', roles: ['staff', 'admin', 'doctor'] },
     { icon: ClipboardCheck, label: 'Check-in', path: '/checkin', roles: ['staff', 'admin'] },
     { icon: Users, label: 'Queue Management', path: '/queue', roles: ['staff', 'admin', 'doctor'] },
-    { icon: UserRound, label: "Doctor's Page", path: '/doctor', roles: ['doctor'] },
+    { icon: UserRound, label: "Doctor's Page", path: '/doctor', roles: ['doctor', 'admin'] },
     { icon: CreditCard, label: 'Medical Aid Claims', path: '/medical-aid', roles: ['staff', 'admin'] },
     { icon: TrendingUp, label: 'Business Insights', path: '/insights', roles: ['admin'] },
     { icon: Settings, label: 'User Management', path: '/users', roles: ['admin'] },

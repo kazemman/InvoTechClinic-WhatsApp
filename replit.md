@@ -46,7 +46,7 @@ Preferred communication style: Simple, everyday language.
 ### Authentication & Authorization
 - **Role-Based Access Control**: Three distinct roles with granular permissions
   - Staff: Patient registration, appointments, check-ins, queue management
-  - Admin: All staff permissions plus user management, business insights, system administration
+  - Admin: Full system access including all staff permissions, user management, business insights, system administration, and complete access to medical information and consultations
   - Doctor: Queue management, patient consultations, medical records access
 - **Security**: JWT tokens with configurable expiration, password hashing with bcrypt
 - **Route Protection**: Frontend and backend route guards based on user roles
