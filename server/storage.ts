@@ -192,6 +192,13 @@ export class DatabaseStorage implements IStorage {
     const slotStart = new Date(appointmentDate);
     slotStart.setSeconds(0, 0);
     
+    console.log('🔍 Conflict Check Debug:', {
+      originalDate: appointmentDate.toISOString(),
+      slotStart: slotStart.toISOString(),
+      doctorId,
+      excludeId
+    });
+    
     // Validate that the time is on a 30-minute boundary
     const minutes = slotStart.getMinutes();
     if (minutes !== 0 && minutes !== 30) {
@@ -201,6 +208,12 @@ export class DatabaseStorage implements IStorage {
     // Create the end of the 30-minute slot for range comparison
     const slotEnd = new Date(slotStart);
     slotEnd.setMinutes(slotEnd.getMinutes() + 30);
+    
+    console.log('🕐 Slot Range:', {
+      slotStart: slotStart.toISOString(),
+      slotEnd: slotEnd.toISOString(),
+      rangeDurationMinutes: (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60)
+    });
     
     // Use range comparison [slotStart, slotEnd) to catch any appointment within the slot
     // This handles cases where stored appointments have non-zero seconds/milliseconds
@@ -222,6 +235,15 @@ export class DatabaseStorage implements IStorage {
     const conflictingAppointments = await db.select().from(appointments)
       .where(whereConditions)
       .limit(1);
+    
+    console.log('🔍 Conflict Query Results:', {
+      conflictCount: conflictingAppointments.length,
+      conflicts: conflictingAppointments.map(apt => ({
+        id: apt.id,
+        appointmentDate: apt.appointmentDate.toISOString(),
+        status: apt.status
+      }))
+    });
     
     return conflictingAppointments.length > 0;
   }
