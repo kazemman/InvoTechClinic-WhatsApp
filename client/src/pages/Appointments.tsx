@@ -453,17 +453,23 @@ export default function Appointments() {
                           </div>
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <User className="w-4 h-4 text-muted-foreground" />
-                            <span className="font-medium" data-testid={`text-patient-${appointment.id}`}>
+                          {/* Patient name prominently displayed */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <User className="w-5 h-5 text-primary" />
+                            <span className="text-lg font-semibold text-foreground" data-testid={`text-patient-${appointment.id}`}>
                               {appointment.patient?.firstName} {appointment.patient?.lastName}
                             </span>
                           </div>
+                          {/* Appointment type prominently displayed */}
+                          <div className="text-base font-medium text-foreground mb-1">
+                            {appointment.appointmentType}
+                          </div>
+                          {/* Doctor name as secondary information */}
                           <div className="text-sm text-muted-foreground">
-                            {appointment.appointmentType} • Dr. {appointment.doctor?.name}
+                            Dr. {appointment.doctor?.name}
                           </div>
                           {appointment.notes && (
-                            <div className="text-sm text-muted-foreground mt-1">
+                            <div className="text-sm text-muted-foreground mt-2 italic">
                               {appointment.notes}
                             </div>
                           )}

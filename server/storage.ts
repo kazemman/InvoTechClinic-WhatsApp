@@ -151,12 +151,17 @@ export class DatabaseStorage implements IStorage {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    return await db.select().from(appointments)
-      .where(and(
+    return await db.query.appointments.findMany({
+      where: and(
         gte(appointments.appointmentDate, startOfDay),
         lte(appointments.appointmentDate, endOfDay)
-      ))
-      .orderBy(appointments.appointmentDate);
+      ),
+      with: {
+        patient: true,
+        doctor: true
+      },
+      orderBy: appointments.appointmentDate
+    });
   }
 
   async getAppointmentsByDoctor(doctorId: string, date?: Date): Promise<Appointment[]> {
@@ -166,24 +171,39 @@ export class DatabaseStorage implements IStorage {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
       
-      return await db.select().from(appointments)
-        .where(and(
+      return await db.query.appointments.findMany({
+        where: and(
           eq(appointments.doctorId, doctorId),
           gte(appointments.appointmentDate, startOfDay),
           lte(appointments.appointmentDate, endOfDay)
-        ))
-        .orderBy(appointments.appointmentDate);
+        ),
+        with: {
+          patient: true,
+          doctor: true
+        },
+        orderBy: appointments.appointmentDate
+      });
     }
     
-    return await db.select().from(appointments)
-      .where(eq(appointments.doctorId, doctorId))
-      .orderBy(appointments.appointmentDate);
+    return await db.query.appointments.findMany({
+      where: eq(appointments.doctorId, doctorId),
+      with: {
+        patient: true,
+        doctor: true
+      },
+      orderBy: appointments.appointmentDate
+    });
   }
 
   async getAppointmentsByPatient(patientId: string): Promise<Appointment[]> {
-    return await db.select().from(appointments)
-      .where(eq(appointments.patientId, patientId))
-      .orderBy(desc(appointments.appointmentDate));
+    return await db.query.appointments.findMany({
+      where: eq(appointments.patientId, patientId),
+      with: {
+        patient: true,
+        doctor: true
+      },
+      orderBy: desc(appointments.appointmentDate)
+    });
   }
 
   async checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeId?: string): Promise<boolean> {
@@ -205,22 +225,22 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Appointment time must be scheduled in 30-minute intervals');
     }
     
-    // Create the end of the 30-minute slot for range comparison
+    // For conflict checking, we need to check if there's an appointment at the EXACT same slot time
+    // We normalize both the input time and compare against normalized database times
+    // This ensures we only block exact slot matches, not adjacent slots
+    
+    console.log('🕐 Checking for exact slot match at:', slotStart.toISOString());
+    
+    // Check for appointments at the exact same normalized time slot
+    // We use a tight range check to handle minor timestamp differences (seconds/milliseconds)
+    // but keep it precise to only match the same 30-minute slot
     const slotEnd = new Date(slotStart);
-    slotEnd.setMinutes(slotEnd.getMinutes() + 30);
+    slotEnd.setMinutes(slotEnd.getMinutes() + 29, 59, 999); // End at 29:59.999 to stay within the slot
     
-    console.log('🕐 Slot Range:', {
-      slotStart: slotStart.toISOString(),
-      slotEnd: slotEnd.toISOString(),
-      rangeDurationMinutes: (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60)
-    });
-    
-    // Use range comparison [slotStart, slotEnd) to catch any appointment within the slot
-    // This handles cases where stored appointments have non-zero seconds/milliseconds
     let whereConditions = and(
       eq(appointments.doctorId, doctorId),
       gte(appointments.appointmentDate, slotStart),
-      sql`${appointments.appointmentDate} < ${slotEnd}`,
+      lte(appointments.appointmentDate, slotEnd), // Use lte with proper drizzle function
       sql`${appointments.status} NOT IN ('cancelled')`
     );
     
@@ -237,6 +257,8 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     
     console.log('🔍 Conflict Query Results:', {
+      slotStart: slotStart.toISOString(),
+      slotEnd: slotEnd.toISOString(),
       conflictCount: conflictingAppointments.length,
       conflicts: conflictingAppointments.map(apt => ({
         id: apt.id,
