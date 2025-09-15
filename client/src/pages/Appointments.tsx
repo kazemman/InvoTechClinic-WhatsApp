@@ -15,12 +15,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, Clock, User, CalendarPlus, Search, X } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 export default function Appointments() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedTab, setSelectedTab] = useState('today');
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [showPatientResults, setShowPatientResults] = useState(false);
+  
+  // Calculate today and tomorrow dates
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const selectedDate = selectedTab === 'today' ? today : tomorrow;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -370,24 +376,21 @@ export default function Appointments() {
         {/* Appointments List */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Appointments Schedule
-              </CardTitle>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-auto"
-                data-testid="input-date-filter"
-              />
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Appointments Schedule
+            </CardTitle>
             <CardDescription>
               Manage and track appointment status
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="today" data-testid="tab-today">Today</TabsTrigger>
+                <TabsTrigger value="tomorrow" data-testid="tab-tomorrow">Tomorrow</TabsTrigger>
+              </TabsList>
+              <TabsContent value={selectedTab} className="mt-0">
             <div className="space-y-4">
               {appointments && appointments.length > 0 ? (
                 appointments.map((appointment: any) => (
@@ -455,6 +458,8 @@ export default function Appointments() {
                 </div>
               )}
             </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
