@@ -114,7 +114,7 @@ export default function Appointments() {
     }
   };
 
-  const updateAppointmentStatus = (id: string, status: string) => {
+  const updateAppointmentStatus = (id: string, status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled') => {
     updateAppointmentMutation.mutate({ id, status });
   };
 
@@ -247,7 +247,8 @@ export default function Appointments() {
                       <FormLabel>Notes</FormLabel>
                       <FormControl>
                         <Textarea 
-                          {...field} 
+                          {...field}
+                          value={field.value || ''} 
                           placeholder="Additional notes..."
                           data-testid="input-appointment-notes"
                         />
