@@ -32,6 +32,7 @@ export interface IStorage {
   getAppointmentsByDate(date: Date): Promise<Appointment[]>;
   getAppointmentsByDoctor(doctorId: string, date?: Date): Promise<Appointment[]>;
   getAppointmentsByPatient(patientId: string): Promise<Appointment[]>;
+  checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeId?: string): Promise<boolean>;
 
   // Check-in methods
   createCheckIn(checkIn: InsertCheckIn): Promise<CheckIn>;
@@ -183,6 +184,28 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(appointments)
       .where(eq(appointments.patientId, patientId))
       .orderBy(desc(appointments.appointmentDate));
+  }
+
+  async checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeId?: string): Promise<boolean> {
+    let whereConditions = and(
+      eq(appointments.doctorId, doctorId),
+      eq(appointments.appointmentDate, appointmentDate),
+      sql`${appointments.status} NOT IN ('cancelled')`
+    );
+    
+    // If updating an existing appointment, exclude it from conflict check
+    if (excludeId) {
+      whereConditions = and(
+        whereConditions,
+        sql`${appointments.id} != ${excludeId}`
+      );
+    }
+    
+    const conflictingAppointments = await db.select().from(appointments)
+      .where(whereConditions)
+      .limit(1);
+    
+    return conflictingAppointments.length > 0;
   }
 
   // Check-in methods

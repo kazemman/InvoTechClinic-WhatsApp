@@ -407,6 +407,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const appointmentData = insertAppointmentSchema.parse(bodyData);
       console.log('Validated appointment data:', JSON.stringify(appointmentData, null, 2));
       
+      // Check for appointment conflicts
+      const hasConflict = await storage.checkAppointmentConflict(
+        appointmentData.doctorId, 
+        appointmentData.appointmentDate
+      );
+      
+      if (hasConflict) {
+        console.log('Appointment conflict detected for doctor:', appointmentData.doctorId, 'at time:', appointmentData.appointmentDate);
+        return res.status(409).json({ 
+          message: 'This doctor already has an appointment at the selected time. Please choose a different time slot.',
+          conflict: true
+        });
+      }
+      
       const appointment = await storage.createAppointment(appointmentData);
       console.log('Created appointment:', JSON.stringify(appointment, null, 2));
 
@@ -463,8 +477,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/appointments/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
-      const appointmentData = req.body;
-      const appointment = await storage.updateAppointment(id, appointmentData);
+      
+      // Transform date strings to Date objects if needed
+      const bodyData = { ...req.body };
+      if (bodyData.appointmentDate && typeof bodyData.appointmentDate === 'string') {
+        bodyData.appointmentDate = new Date(bodyData.appointmentDate);
+      }
+      
+      // If updating appointment time and doctor, check for conflicts (excluding current appointment)
+      if (bodyData.doctorId && bodyData.appointmentDate) {
+        const hasConflict = await storage.checkAppointmentConflict(
+          bodyData.doctorId, 
+          bodyData.appointmentDate,
+          id // Exclude current appointment from conflict check
+        );
+        
+        if (hasConflict) {
+          console.log('Appointment update conflict detected for doctor:', bodyData.doctorId, 'at time:', bodyData.appointmentDate);
+          return res.status(409).json({ 
+            message: 'This doctor already has another appointment at the selected time. Please choose a different time slot.',
+            conflict: true
+          });
+        }
+      }
+      
+      const appointment = await storage.updateAppointment(id, bodyData);
 
       // Log activity
       if (req.user) {
@@ -477,6 +514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(appointment);
     } catch (error) {
+      console.error('Appointment update error:', error);
       res.status(400).json({ message: 'Failed to update appointment' });
     }
   });
