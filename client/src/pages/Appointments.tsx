@@ -12,10 +12,14 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, User, CalendarPlus } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Calendar, Clock, User, CalendarPlus, Search, X } from 'lucide-react';
 
 export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
+  const [showPatientResults, setShowPatientResults] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -38,12 +42,14 @@ export default function Appointments() {
     },
   });
 
-  const { data: patients } = useQuery({
-    queryKey: ['/api/patients'],
+  const { data: patientSearchResults } = useQuery({
+    queryKey: ['/api/patients/search', patientSearchQuery],
     queryFn: async () => {
-      const res = await apiRequest('GET', '/api/patients');
+      if (!patientSearchQuery.trim()) return [];
+      const res = await apiRequest('GET', `/api/patients/search?q=${encodeURIComponent(patientSearchQuery)}`);
       return res.json();
     },
+    enabled: patientSearchQuery.length > 2,
   });
 
   const { data: doctors } = useQuery({
@@ -65,7 +71,17 @@ export default function Appointments() {
         title: 'Appointment Scheduled',
         description: 'The appointment has been successfully scheduled.',
       });
-      form.reset();
+      form.reset({
+        patientId: '',
+        doctorId: '',
+        appointmentDate: new Date(),
+        appointmentType: '',
+        notes: '',
+      });
+      // Clear patient selection state
+      setSelectedPatient(null);
+      setPatientSearchQuery('');
+      setShowPatientResults(false);
       queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
     },
@@ -98,6 +114,20 @@ export default function Appointments() {
       });
     },
   });
+
+  const selectPatient = (patient: any) => {
+    setSelectedPatient(patient);
+    setPatientSearchQuery('');
+    setShowPatientResults(false);
+    form.setValue('patientId', patient.id);
+  };
+
+  const clearSelectedPatient = () => {
+    setSelectedPatient(null);
+    setPatientSearchQuery('');
+    setShowPatientResults(false);
+    form.setValue('patientId', '');
+  };
 
   const onSubmit = (data: InsertAppointment) => {
     createAppointmentMutation.mutate(data);
@@ -148,20 +178,85 @@ export default function Appointments() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Patient *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-patient">
-                            <SelectValue placeholder="Select patient" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {patients?.map((patient: any) => (
-                            <SelectItem key={patient.id} value={patient.id}>
-                              {patient.firstName} {patient.lastName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-2">
+                        {selectedPatient ? (
+                          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="w-8 h-8">
+                                {selectedPatient.photoUrl && <AvatarImage src={selectedPatient.photoUrl} />}
+                                <AvatarFallback className="text-sm">
+                                  {selectedPatient.firstName.charAt(0)}{selectedPatient.lastName.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium text-sm" data-testid="text-selected-patient">
+                                  {selectedPatient.firstName} {selectedPatient.lastName}
+                                </p>
+                                <p className="text-xs text-muted-foreground">{selectedPatient.phone}</p>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={clearSelectedPatient}
+                              data-testid="button-clear-patient"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search by name, phone, or ID number..."
+                                value={patientSearchQuery}
+                                onChange={(e) => {
+                                  setPatientSearchQuery(e.target.value);
+                                  setShowPatientResults(e.target.value.length > 2);
+                                }}
+                                className="pl-10"
+                                data-testid="input-patient-search"
+                              />
+                            </div>
+                            
+                            {showPatientResults && patientSearchResults && patientSearchResults.length > 0 && (
+                              <div className="absolute z-50 w-full mt-1 bg-background border rounded-lg shadow-lg max-h-60 overflow-auto">
+                                {patientSearchResults.map((patient: any) => (
+                                  <div
+                                    key={patient.id}
+                                    className="flex items-center gap-3 p-3 hover:bg-muted cursor-pointer border-b last:border-b-0"
+                                    onClick={() => selectPatient(patient)}
+                                    data-testid={`patient-search-result-${patient.id}`}
+                                  >
+                                    <Avatar className="w-8 h-8">
+                                      {patient.photoUrl && <AvatarImage src={patient.photoUrl} />}
+                                      <AvatarFallback className="text-sm">
+                                        {patient.firstName.charAt(0)}{patient.lastName.charAt(0)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm">
+                                        {patient.firstName} {patient.lastName}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {patient.phone} • ID: {patient.idNumber}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {showPatientResults && patientSearchResults && patientSearchResults.length === 0 && patientSearchQuery.length > 2 && (
+                              <div className="absolute z-50 w-full mt-1 bg-background border rounded-lg shadow-lg p-3 text-sm text-muted-foreground text-center">
+                                No patients found matching "{patientSearchQuery}"
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
