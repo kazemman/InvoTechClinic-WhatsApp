@@ -170,6 +170,17 @@ export const insertPatientSchema = createInsertSchema(patients).omit({
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
+}).extend({
+  appointmentDate: z.date().refine(
+    (date) => {
+      // Ensure appointment is scheduled in 30-minute intervals
+      const minutes = date.getMinutes();
+      return minutes === 0 || minutes === 30;
+    },
+    {
+      message: "Appointment time must be scheduled in 30-minute intervals (e.g., 09:00, 09:30, 10:00)",
+    }
+  )
 });
 
 export const insertCheckInSchema = createInsertSchema(checkIns).omit({

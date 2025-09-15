@@ -87,3 +87,47 @@ export function localDateTimeStringToDate(dateTimeString: string): Date {
   // We create a Date object directly from this, which treats it as local time
   return new Date(dateTimeString);
 }
+
+/**
+ * Round a date to the nearest 30-minute interval
+ * This ensures appointments are scheduled in 30-minute slots
+ */
+export function roundToNearest30Minutes(date: Date): Date {
+  const rounded = new Date(date);
+  const minutes = rounded.getMinutes();
+  
+  // Round to nearest 30-minute interval
+  if (minutes < 15) {
+    rounded.setMinutes(0, 0, 0); // Round down to :00
+  } else if (minutes < 45) {
+    rounded.setMinutes(30, 0, 0); // Round to :30
+  } else {
+    rounded.setMinutes(0, 0, 0); // Round up to next hour :00
+    rounded.setHours(rounded.getHours() + 1);
+  }
+  
+  return rounded;
+}
+
+/**
+ * Check if a date is aligned to a 30-minute boundary
+ */
+export function isAlignedTo30Minutes(date: Date): boolean {
+  const minutes = date.getMinutes();
+  return minutes === 0 || minutes === 30;
+}
+
+/**
+ * Get the next available 30-minute slot from the current time
+ * Useful for setting default appointment times
+ */
+export function getNextAvailable30MinuteSlot(): Date {
+  const now = new Date();
+  const next = new Date(now);
+  
+  // Add 30 minutes to current time as buffer
+  next.setMinutes(next.getMinutes() + 30);
+  
+  // Round to next 30-minute boundary
+  return roundToNearest30Minutes(next);
+}

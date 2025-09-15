@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { insertAppointmentSchema, type InsertAppointment } from '@shared/schema';
 import { apiRequest } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import { formatDate, formatTime, dateToLocalDateTimeString, localDateTimeStringToDate } from '@/lib/utils';
+import { formatDate, formatTime, dateToLocalDateTimeString, localDateTimeStringToDate, roundToNearest30Minutes, getNextAvailable30MinuteSlot } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -29,7 +29,7 @@ export default function Appointments() {
     defaultValues: {
       patientId: '',
       doctorId: '',
-      appointmentDate: new Date(),
+      appointmentDate: getNextAvailable30MinuteSlot(),
       appointmentType: '',
       notes: '',
     },
@@ -75,7 +75,7 @@ export default function Appointments() {
       form.reset({
         patientId: '',
         doctorId: '',
-        appointmentDate: new Date(),
+        appointmentDate: getNextAvailable30MinuteSlot(),
         appointmentType: '',
         notes: '',
       });
@@ -295,14 +295,24 @@ export default function Appointments() {
                     <FormItem>
                       <FormLabel>Date & Time *</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="datetime-local"
-                          value={field.value instanceof Date ? 
-                            dateToLocalDateTimeString(field.value) : ''}
-                          onChange={(e) => field.onChange(localDateTimeStringToDate(e.target.value))}
-                          data-testid="input-appointment-datetime"
-                        />
+                        <div className="space-y-2">
+                          <Input
+                            {...field}
+                            type="datetime-local"
+                            step="1800"
+                            value={field.value instanceof Date ? 
+                              dateToLocalDateTimeString(field.value) : ''}
+                            onChange={(e) => {
+                              const selectedDate = localDateTimeStringToDate(e.target.value);
+                              const roundedDate = roundToNearest30Minutes(selectedDate);
+                              field.onChange(roundedDate);
+                            }}
+                            data-testid="input-appointment-datetime"
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            Appointments are scheduled in 30-minute intervals (e.g., 09:00, 09:30, 10:00)
+                          </p>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
