@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,13 +17,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { 
   UserRound, Search, Users, FileText, 
-  Stethoscope, History, Pill, FileImage
+  Stethoscope, History, Pill, FileImage,
+  Upload, X, Download, Eye, Trash2, File, Plus
 } from 'lucide-react';
 
 export default function DoctorPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [selectedQueueItem, setSelectedQueueItem] = useState<any>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -64,6 +68,34 @@ export default function DoctorPage() {
     enabled: !!selectedPatient?.id,
   });
 
+  // Query to get medical attachments for a specific consultation
+  const getMedicalAttachments = async (consultationId: string) => {
+    const res = await apiRequest('GET', `/api/medical-attachments/${consultationId}`);
+    return res.json();
+  };
+
+  const downloadAttachment = async (attachmentId: string, fileName: string) => {
+    try {
+      const response = await apiRequest('GET', `/api/medical-attachments/file/${attachmentId}`);
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: 'Download Failed',
+        description: 'Could not download the file',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const form = useForm<InsertConsultation>({
     resolver: zodResolver(insertConsultationSchema),
     defaultValues: {
@@ -73,8 +105,6 @@ export default function DoctorPage() {
       notes: '',
       diagnosis: '',
       prescription: '',
-      referralLetters: '',
-      attachments: '',
     },
   });
 
@@ -109,6 +139,158 @@ export default function DoctorPage() {
     form.setValue('patientId', queueItem.patientId);
     form.setValue('doctorId', currentUser?.id || '');
     form.setValue('queueId', queueItem.id);
+    // Reset file upload state
+    setSelectedFiles([]);
+    setUploadedAttachments([]);
+  };
+
+  // File upload handlers
+  const handleFileSelect = useCallback((files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const validFiles = fileArray.filter(file => {
+      // Check file size (25MB limit)
+      if (file.size > 25 * 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: `${file.name} is larger than 25MB limit`,
+          variant: 'destructive',
+        });
+        return false;
+      }
+      return true;
+    });
+
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+  }, [toast]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = e.dataTransfer.files;
+    handleFileSelect(files);
+  }, [handleFileSelect]);
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadFiles = async (consultationId: string) => {
+    if (selectedFiles.length === 0) return [];
+
+    const formData = new FormData();
+    formData.append('consultationId', consultationId);
+    
+    selectedFiles.forEach(file => {
+      formData.append('files', file);
+    });
+
+    const response = await apiRequest('POST', '/api/medical-attachments', formData);
+    return response.json();
+  };
+
+  // Get file icon based on type
+  const getFileIcon = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return <File className="w-4 h-4 text-red-500" />;
+      case 'doc':
+      case 'docx':
+        return <File className="w-4 h-4 text-blue-500" />;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+        return <FileImage className="w-4 h-4 text-green-500" />;
+      default:
+        return <File className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  // Component to display attachments for a consultation
+  const AttachmentsDisplay = ({ consultationId }: { consultationId: string }) => {
+    const { data: attachments, isLoading } = useQuery({
+      queryKey: ['/api/medical-attachments', consultationId],
+      queryFn: () => getMedicalAttachments(consultationId),
+      enabled: !!consultationId,
+    });
+
+    if (isLoading) {
+      return <div className="text-sm text-muted-foreground">Loading attachments...</div>;
+    }
+
+    if (!attachments || attachments.length === 0) {
+      return <div className="text-sm text-muted-foreground">No attachments</div>;
+    }
+
+    return (
+      <div className="space-y-2">
+        <h4 className="font-medium flex items-center gap-2">
+          <FileImage className="w-4 h-4" />
+          Medical Attachments ({attachments.length})
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {attachments.map((attachment: any) => (
+            <div key={attachment.id} className="flex items-center justify-between p-2 bg-background border rounded" data-testid={`attachment-${attachment.id}`}>
+              <div className="flex items-center gap-2 flex-1">
+                {getFileIcon(attachment.originalName)}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate" title={attachment.originalName}>
+                    {attachment.originalName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => downloadAttachment(attachment.id, attachment.originalName)}
+                  data-testid={`button-download-${attachment.id}`}
+                >
+                  <Download className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Update onSubmit to handle file uploads
+  const onSubmit = async (data: InsertConsultation) => {
+    try {
+      // First create the consultation
+      const consultation = await createConsultationMutation.mutateAsync(data);
+      
+      // Then upload files if any
+      if (selectedFiles.length > 0) {
+        await uploadFiles(consultation.id);
+        toast({
+          title: 'Files Uploaded',
+          description: `${selectedFiles.length} file(s) attached to consultation`,
+        });
+      }
+      
+      // Reset form and file state
+      setSelectedFiles([]);
+      setUploadedAttachments([]);
+    } catch (error) {
+      console.error('Consultation creation failed:', error);
+    }
   };
 
   const selectPatientFromSearch = (patient: any) => {
@@ -118,23 +300,9 @@ export default function DoctorPage() {
     form.setValue('doctorId', currentUser?.id || '');
     form.setValue('queueId', undefined);
     setSearchQuery('');
-  };
-
-  const onSubmit = (data: InsertConsultation) => {
-    // Filter out undefined or empty queueId
-    const consultationData = {
-      ...data,
-      queueId: data.queueId && data.queueId.trim() ? data.queueId : undefined
-    };
-    
-    // Remove undefined fields to avoid sending them to the API
-    Object.keys(consultationData).forEach(key => {
-      if (consultationData[key as keyof InsertConsultation] === undefined) {
-        delete consultationData[key as keyof InsertConsultation];
-      }
-    });
-    
-    createConsultationMutation.mutate(consultationData);
+    // Reset file upload state
+    setSelectedFiles([]);
+    setUploadedAttachments([]);
   };
 
   const getStatusBadgeClass = (status: string) => {
@@ -373,43 +541,82 @@ export default function DoctorPage() {
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name="referralLetters"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Referral Letters</FormLabel>
-                            <FormControl>
-                              <Textarea 
-                                {...field} 
-                                value={field.value || ''}
-                                placeholder="Specialist referrals, recommendations..."
-                                data-testid="input-referrals"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
 
-                      <FormField
-                        control={form.control}
-                        name="attachments"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Attachments & Notes</FormLabel>
-                            <FormControl>
-                              <Textarea 
-                                {...field} 
-                                value={field.value || ''}
-                                placeholder="File references, additional notes..."
-                                data-testid="input-attachments"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
+                      {/* Medical File Attachments */}
+                      <div className="space-y-4">
+                        <FormLabel>Medical Attachments</FormLabel>
+                        
+                        {/* File Upload Drop Zone */}
+                        <div
+                          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                            isDragOver 
+                              ? 'border-primary bg-primary/10' 
+                              : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                          }`}
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          data-testid="file-upload-dropzone"
+                        >
+                          <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Drag and drop medical files here, or click to select
+                          </p>
+                          <p className="text-xs text-muted-foreground mb-4">
+                            Supports: PDF, DOC, DOCX, Images, DICOM files (max 25MB each)
+                          </p>
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.tiff,.dcm,.xml,.json"
+                            onChange={(e) => e.target.files && handleFileSelect(e.target.files)}
+                            className="hidden"
+                            id="file-upload"
+                            data-testid="file-input"
+                          />
+                          <Button 
+                            type="button"
+                            variant="outline"
+                            onClick={() => document.getElementById('file-upload')?.click()}
+                            data-testid="button-select-files"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Select Files
+                          </Button>
+                        </div>
+
+                        {/* Selected Files List */}
+                        {selectedFiles.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">Selected Files ({selectedFiles.length})</p>
+                            <div className="space-y-2">
+                              {selectedFiles.map((file, index) => (
+                                <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg" data-testid={`selected-file-${index}`}>
+                                  <div className="flex items-center gap-3">
+                                    {getFileIcon(file.name)}
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium truncate max-w-[200px]">{file.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeFile(index)}
+                                    data-testid={`button-remove-file-${index}`}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                      />
+
+                      </div>
 
                       <Button 
                         type="submit" 
@@ -475,17 +682,10 @@ export default function DoctorPage() {
                               </div>
                             )}
 
-                            {consultation.referralLetters && (
-                              <div>
-                                <h4 className="font-medium flex items-center gap-2 mb-2">
-                                  <FileImage className="w-4 h-4" />
-                                  Referrals
-                                </h4>
-                                <p className="text-sm text-muted-foreground bg-muted p-3 rounded">
-                                  {consultation.referralLetters}
-                                </p>
-                              </div>
-                            )}
+
+                            {/* Medical Attachments */}
+                            <AttachmentsDisplay consultationId={consultation.id} />
+
                           </CardContent>
                         </Card>
                       ))

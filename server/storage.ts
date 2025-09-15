@@ -1,9 +1,10 @@
 import { 
-  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs,
+  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments,
   type User, type InsertUser, type Patient, type InsertPatient, 
   type Appointment, type InsertAppointment, type CheckIn, type InsertCheckIn,
   type Queue, type InsertQueue, type Consultation, type InsertConsultation,
-  type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog
+  type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog,
+  type MedicalAttachment, type InsertMedicalAttachment
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
@@ -46,9 +47,11 @@ export interface IStorage {
   getQueueByDoctor(doctorId: string): Promise<Queue[]>;
 
   // Consultation methods
+  getConsultation(id: string): Promise<Consultation | undefined>;
   createConsultation(consultation: InsertConsultation): Promise<Consultation>;
   getConsultationsByPatient(patientId: string): Promise<Consultation[]>;
   getConsultationsByDoctor(doctorId: string): Promise<Consultation[]>;
+  deleteConsultation(id: string): Promise<void>;
 
   // Payment methods
   createPayment(payment: InsertPayment): Promise<Payment>;
@@ -58,6 +61,13 @@ export interface IStorage {
   // Activity log methods
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
   getActivityLogs(limit?: number): Promise<ActivityLog[]>;
+
+  // Medical attachment methods
+  createMedicalAttachment(attachment: InsertMedicalAttachment): Promise<MedicalAttachment>;
+  getMedicalAttachmentsByConsultation(consultationId: string): Promise<MedicalAttachment[]>;
+  deleteMedicalAttachment(id: string): Promise<void>;
+  getMedicalAttachment(id: string): Promise<MedicalAttachment | undefined>;
+  deleteMedicalAttachmentsByConsultation(consultationId: string): Promise<void>;
 
   // Dashboard stats
   getDashboardStats(date: Date): Promise<{
@@ -340,6 +350,13 @@ export class DatabaseStorage implements IStorage {
     return consultation;
   }
 
+  async getConsultation(id: string): Promise<Consultation | undefined> {
+    const result = await db.select().from(consultations)
+      .where(eq(consultations.id, id))
+      .limit(1);
+    return result[0];
+  }
+
   async getConsultationsByPatient(patientId: string): Promise<Consultation[]> {
     return await db.select().from(consultations)
       .where(eq(consultations.patientId, patientId))
@@ -393,6 +410,65 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(activityLogs)
       .orderBy(desc(activityLogs.timestamp))
       .limit(limit);
+  }
+
+  // Medical attachment methods
+  async createMedicalAttachment(insertAttachment: InsertMedicalAttachment): Promise<MedicalAttachment> {
+    const [attachment] = await db.insert(medicalAttachments).values(insertAttachment).returning();
+    return attachment;
+  }
+
+  async getMedicalAttachmentsByConsultation(consultationId: string): Promise<MedicalAttachment[]> {
+    return await db.query.medicalAttachments.findMany({
+      where: eq(medicalAttachments.consultationId, consultationId),
+      with: {
+        uploadedByUser: {
+          columns: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: desc(medicalAttachments.uploadedAt)
+    });
+  }
+
+  async deleteMedicalAttachment(id: string): Promise<void> {
+    await db.delete(medicalAttachments).where(eq(medicalAttachments.id, id));
+  }
+
+  async getMedicalAttachment(id: string): Promise<MedicalAttachment | undefined> {
+    const [attachment] = await db.select().from(medicalAttachments).where(eq(medicalAttachments.id, id));
+    return attachment || undefined;
+  }
+
+  async deleteMedicalAttachmentsByConsultation(consultationId: string): Promise<void> {
+    // Get all attachments for this consultation first (to delete files from disk)
+    const attachments = await this.getMedicalAttachmentsByConsultation(consultationId);
+    
+    // Delete files from disk
+    const fs = require('fs');
+    attachments.forEach(attachment => {
+      if (fs.existsSync(attachment.filePath)) {
+        try {
+          fs.unlinkSync(attachment.filePath);
+        } catch (error) {
+          console.error(`Failed to delete file ${attachment.filePath}:`, error);
+        }
+      }
+    });
+
+    // Delete database records
+    await db.delete(medicalAttachments).where(eq(medicalAttachments.consultationId, consultationId));
+  }
+
+  async deleteConsultation(id: string): Promise<void> {
+    // First delete all associated medical attachments (cascade cleanup)
+    await this.deleteMedicalAttachmentsByConsultation(id);
+    
+    // Then delete the consultation record
+    await db.delete(consultations).where(eq(consultations.id, id));
   }
 
   // Dashboard stats

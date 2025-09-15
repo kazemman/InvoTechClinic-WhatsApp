@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, boolean, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, boolean, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -84,9 +84,24 @@ export const consultations = pgTable("consultations", {
   notes: text("notes"),
   diagnosis: text("diagnosis"),
   prescription: text("prescription"),
-  referralLetters: text("referral_letters"),
-  attachments: text("attachments"),
   consultationDate: timestamp("consultation_date").defaultNow().notNull(),
+});
+
+export const medicalAttachments = pgTable("medical_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  consultationId: varchar("consultation_id").notNull().references(() => consultations.id),
+  fileName: text("file_name").notNull(),
+  originalName: text("original_name").notNull(),
+  filePath: text("file_path").notNull(),
+  fileSize: integer("file_size").notNull(),
+  mimeType: text("mime_type").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
+}, (table) => {
+  return {
+    // Index for performance when querying attachments by consultation
+    consultationIdIdx: index("medical_attachments_consultation_id_idx").on(table.consultationId),
+  };
 });
 
 export const payments = pgTable("payments", {
@@ -162,6 +177,33 @@ export const queueRelations = relations(queue, ({ one }) => ({
   }),
 }));
 
+export const consultationsRelations = relations(consultations, ({ one, many }) => ({
+  patient: one(patients, {
+    fields: [consultations.patientId],
+    references: [patients.id],
+  }),
+  doctor: one(users, {
+    fields: [consultations.doctorId],
+    references: [users.id],
+  }),
+  queue: one(queue, {
+    fields: [consultations.queueId],
+    references: [queue.id],
+  }),
+  medicalAttachments: many(medicalAttachments),
+}));
+
+export const medicalAttachmentsRelations = relations(medicalAttachments, ({ one }) => ({
+  consultation: one(consultations, {
+    fields: [medicalAttachments.consultationId],
+    references: [consultations.id],
+  }),
+  uploadedByUser: one(users, {
+    fields: [medicalAttachments.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -231,6 +273,11 @@ export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
   timestamp: true,
 });
 
+export const insertMedicalAttachmentSchema = createInsertSchema(medicalAttachments).omit({
+  id: true,
+  uploadedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -248,6 +295,8 @@ export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
+export type MedicalAttachment = typeof medicalAttachments.$inferSelect;
+export type InsertMedicalAttachment = z.infer<typeof insertMedicalAttachmentSchema>;
 
 // Login schema
 export const loginSchema = z.object({

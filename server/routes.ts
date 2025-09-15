@@ -8,11 +8,12 @@ import { storage } from "./storage";
 import { 
   loginSchema, passwordResetSchema, insertUserSchema, insertPatientSchema, 
   insertAppointmentSchema, insertCheckInSchema, insertQueueSchema,
-  insertConsultationSchema, insertPaymentSchema, insertActivityLogSchema
+  insertConsultationSchema, insertPaymentSchema, insertActivityLogSchema,
+  insertMedicalAttachmentSchema
 } from "@shared/schema";
 import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, AuthenticatedRequest } from "./auth";
 
-// Configure multer for file uploads
+// Configure multer for patient photo uploads
 const upload = multer({
   dest: 'uploads/patient-photos/',
   limits: {
@@ -27,6 +28,41 @@ const upload = multer({
       return cb(null, true);
     } else {
       cb(new Error('Only image files are allowed'));
+    }
+  },
+});
+
+// Configure multer for medical file attachments
+const medicalUpload = multer({
+  dest: 'uploads/medical-attachments/',
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB limit for medical files
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow common medical file types
+    const allowedTypes = /pdf|doc|docx|txt|jpeg|jpg|png|gif|tiff|dcm|xml|json/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const allowedMimeTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/gif',
+      'image/tiff',
+      'application/dicom', // DICOM medical imaging
+      'application/xml',
+      'text/xml',
+      'application/json'
+    ];
+    const mimetypeAllowed = allowedMimeTypes.includes(file.mimetype);
+
+    if (mimetypeAllowed && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('File type not supported. Supported types: PDF, DOC, DOCX, TXT, images (JPG, PNG, GIF, TIFF), DICOM, XML, JSON'));
     }
   },
 });
@@ -768,6 +804,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(consultations);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch consultations' });
+    }
+  });
+
+  // Helper function to check if user has access to a consultation
+  async function hasConsultationAccess(userId: string, consultationId: string, userRole: string): Promise<boolean> {
+    if (userRole === 'admin') return true;
+    
+    const consultation = await storage.getConsultation(consultationId);
+    if (!consultation) return false;
+    
+    // Doctors can access consultations they created
+    if (userRole === 'doctor' && consultation.doctorId === userId) return true;
+    
+    return false;
+  }
+
+  // Medical attachment routes
+  app.post('/api/medical-attachments', authenticateToken, medicalUpload.array('files', 5), async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        return res.status(400).json({ message: 'No files uploaded' });
+      }
+
+      const { consultationId } = req.body;
+      if (!consultationId) {
+        return res.status(400).json({ message: 'Consultation ID is required' });
+      }
+
+      // Check if user has access to this consultation
+      if (!req.user || !(await hasConsultationAccess(req.user.id, consultationId, req.user.role))) {
+        return res.status(403).json({ message: 'Access denied: You do not have permission to upload files for this consultation' });
+      }
+
+      const attachments = [];
+
+      for (const file of req.files) {
+        const attachmentData = {
+          consultationId,
+          fileName: file.filename,
+          originalName: file.originalname,
+          filePath: file.path,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          uploadedBy: req.user?.id || ''
+        };
+
+        const attachment = await storage.createMedicalAttachment(attachmentData);
+        attachments.push(attachment);
+      }
+
+      // Log activity
+      if (req.user) {
+        await storage.createActivityLog({
+          userId: req.user.id,
+          action: 'upload_medical_attachment',
+          details: `Uploaded ${attachments.length} medical file(s) for consultation: ${consultationId}`
+        });
+      }
+
+      res.status(201).json(attachments);
+    } catch (error) {
+      console.error('Medical attachment upload error:', error);
+      res.status(400).json({ message: 'Failed to upload medical attachments' });
+    }
+  });
+
+  app.get('/api/medical-attachments/:consultationId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { consultationId } = req.params;
+      
+      // Check if user has access to this consultation
+      if (!req.user || !(await hasConsultationAccess(req.user.id, consultationId, req.user.role))) {
+        return res.status(403).json({ message: 'Access denied: You do not have permission to view attachments for this consultation' });
+      }
+      
+      const attachments = await storage.getMedicalAttachmentsByConsultation(consultationId);
+      res.json(attachments);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch medical attachments' });
+    }
+  });
+
+  app.get('/api/medical-attachments/file/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const attachment = await storage.getMedicalAttachment(id);
+      
+      if (!attachment) {
+        return res.status(404).json({ message: 'Medical attachment not found' });
+      }
+
+      // Check if user has access to this consultation
+      if (!req.user || !(await hasConsultationAccess(req.user.id, attachment.consultationId, req.user.role))) {
+        return res.status(403).json({ message: 'Access denied: You do not have permission to download this file' });
+      }
+
+      // Set proper headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="${attachment.originalName}"`);
+      res.setHeader('Content-Type', attachment.mimeType);
+      res.sendFile(path.resolve(attachment.filePath));
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to download medical attachment' });
+    }
+  });
+
+  app.delete('/api/medical-attachments/:id', authenticateToken, requireRole(['doctor', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const attachment = await storage.getMedicalAttachment(id);
+      
+      if (!attachment) {
+        return res.status(404).json({ message: 'Medical attachment not found' });
+      }
+
+      // Check if user has access to this consultation
+      if (!req.user || !(await hasConsultationAccess(req.user.id, attachment.consultationId, req.user.role))) {
+        return res.status(403).json({ message: 'Access denied: You do not have permission to delete this file' });
+      }
+
+      // Delete file from filesystem
+      const fs = require('fs');
+      if (fs.existsSync(attachment.filePath)) {
+        fs.unlinkSync(attachment.filePath);
+      }
+
+      // Delete database record
+      await storage.deleteMedicalAttachment(id);
+
+      // Log activity
+      if (req.user) {
+        await storage.createActivityLog({
+          userId: req.user.id,
+          action: 'delete_medical_attachment',
+          details: `Deleted medical attachment: ${attachment.originalName}`
+        });
+      }
+
+      res.json({ message: 'Medical attachment deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to delete medical attachment' });
     }
   });
 
