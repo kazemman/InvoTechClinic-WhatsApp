@@ -15,12 +15,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Calendar, Clock, User, CalendarPlus, Search, X, AlertTriangle, CheckCircle, Users, MapPin } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, CalendarPlus, Search, X, AlertTriangle, CheckCircle, Users, MapPin, CalendarDays } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 export default function Appointments() {
   const [selectedTab, setSelectedTab] = useState('today');
+  const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [showPatientResults, setShowPatientResults] = useState(false);
@@ -37,12 +41,58 @@ export default function Appointments() {
   // Calculate today and tomorrow dates using local timezone
   const todayDate = new Date();
   const tomorrowDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + 1);
-  const selectedDate = selectedTab === 'today' ? toLocalDateString(todayDate) : toLocalDateString(tomorrowDate);
+  
+  // Calculate selected date based on tab and custom date
+  const selectedDate = useMemo(() => {
+    if (selectedTab === 'today') {
+      return toLocalDateString(todayDate);
+    } else if (selectedTab === 'tomorrow') {
+      return toLocalDateString(tomorrowDate);
+    } else if (selectedTab === 'custom' && customDate) {
+      return toLocalDateString(customDate);
+    } else {
+      // Fallback to today if custom tab is selected but no date is chosen
+      return toLocalDateString(todayDate);
+    }
+  }, [selectedTab, customDate, todayDate, tomorrowDate]);
+  
+  // Handle tab changes and reset custom date picker when switching away from custom
+  const handleTabChange = (value: string) => {
+    setSelectedTab(value);
+    if (value !== 'custom') {
+      setIsDatePickerOpen(false);
+    }
+  };
+  
+  // Handle custom date selection
+  const handleCustomDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setCustomDate(date);
+      setSelectedTab('custom');
+      setIsDatePickerOpen(false);
+    }
+  };
+  
+  // Get display text for the current selected date
+  const getSelectedDateDisplay = () => {
+    if (selectedTab === 'today') {
+      return 'Today';
+    } else if (selectedTab === 'tomorrow') {
+      return 'Tomorrow';
+    } else if (selectedTab === 'custom' && customDate) {
+      return formatDate(customDate);
+    } else {
+      return 'Select Date';
+    }
+  };
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const form = useForm<InsertAppointment>({
     resolver: zodResolver(insertAppointmentSchema.extend({
+      patientId: z.string().min(1, 'Please select a patient'),
+      doctorId: z.string().min(1, 'Please select a doctor'),
+      appointmentType: z.string().min(1, 'Please select an appointment type'),
       appointmentDate: z.date().refine((date) => {
         return isThirtyMinuteInterval(date);
       }, {
@@ -446,38 +496,60 @@ export default function Appointments() {
                 <FormField
                   control={form.control}
                   name="appointmentDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date & Time *</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="datetime-local"
-                          step="1800"
-                          value={field.value instanceof Date ? 
-                            dateToLocalDateTimeString(field.value) : ''}
-                          onChange={(e) => {
-                            const selectedDate = localDateTimeStringToDate(e.target.value);
-                            // Always round to nearest 30-minute interval to ensure consistency
-                            field.onChange(roundToNearestThirtyMinutes(selectedDate));
-                          }}
-                          data-testid="input-appointment-datetime"
-                        />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Appointments can only be scheduled at 30-minute intervals (:00 or :30)
-                      </p>
-                      {appointmentConflict && (
-                        <Alert className="mt-2 border-destructive/50 text-destructive" data-testid="alert-time-conflict">
-                          <AlertTriangle className="h-4 w-4" />
-                          <AlertDescription className="text-sm">
-                            {timeConflictError}
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    // Calculate min time to ensure proper 30-minute alignment
+                    const now = new Date();
+                    const minDate = roundToNearestThirtyMinutes(now);
+                    const minDateString = dateToLocalDateTimeString(minDate);
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Date & Time *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="datetime-local"
+                            step="1800"
+                            min={minDateString}
+                            value={field.value instanceof Date ? 
+                              dateToLocalDateTimeString(field.value) : ''}
+                            onChange={(e) => {
+                              const selectedDate = localDateTimeStringToDate(e.target.value);
+                              // Always round to nearest 30-minute interval to ensure consistency
+                              const roundedDate = roundToNearestThirtyMinutes(selectedDate);
+                              field.onChange(roundedDate);
+                            }}
+                            onBlur={(e) => {
+                              // Additional validation on blur to ensure 30-minute intervals
+                              if (e.target.value) {
+                                const selectedDate = localDateTimeStringToDate(e.target.value);
+                                if (!isThirtyMinuteInterval(selectedDate)) {
+                                  const roundedDate = roundToNearestThirtyMinutes(selectedDate);
+                                  field.onChange(roundedDate);
+                                  // Update the input value to reflect the rounded time
+                                  e.target.value = dateToLocalDateTimeString(roundedDate);
+                                }
+                              }
+                            }}
+                            className="font-mono"
+                            data-testid="input-appointment-datetime"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ⏰ Appointments are scheduled in 30-minute slots (:00 or :30 only)
+                        </p>
+                        {appointmentConflict && (
+                          <Alert className="mt-2 border-destructive/50 text-destructive" data-testid="alert-time-conflict">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription className="text-sm">
+                              {timeConflictError}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 <FormField
@@ -556,12 +628,58 @@ export default function Appointments() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="today" data-testid="tab-today">Today</TabsTrigger>
-                <TabsTrigger value="tomorrow" data-testid="tab-tomorrow">Tomorrow</TabsTrigger>
-              </TabsList>
+            <Tabs value={selectedTab} onValueChange={handleTabChange} className="w-full">
+              <div className="flex items-center gap-2 mb-4">
+                <TabsList className="grid grid-cols-2">
+                  <TabsTrigger value="today" data-testid="tab-today">Today</TabsTrigger>
+                  <TabsTrigger value="tomorrow" data-testid="tab-tomorrow">Tomorrow</TabsTrigger>
+                </TabsList>
+                
+                {/* Custom Date Picker */}
+                <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={selectedTab === 'custom' ? 'default' : 'outline'}
+                      className={`flex items-center gap-2 min-w-[140px] ${selectedTab === 'custom' ? 'bg-primary text-primary-foreground' : ''}`}
+                      data-testid="button-custom-date"
+                    >
+                      <CalendarDays className="w-4 h-4" />
+                      {getSelectedDateDisplay()}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customDate}
+                      onSelect={handleCustomDateSelect}
+                      disabled={(date) => {
+                        // Disable past dates (allow today and future dates)
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return date < today;
+                      }}
+                      initialFocus
+                      data-testid="calendar-custom-date"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
               <TabsContent value={selectedTab} className="mt-0">
+                {/* Date Selection Summary */}
+                <div className="mb-4 p-3 bg-muted/30 rounded-lg border">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium">Viewing appointments for:</span>
+                    <span className="text-foreground font-semibold" data-testid="text-selected-date-display">
+                      {getSelectedDateDisplay()}
+                      {selectedTab === 'custom' && customDate && (
+                        <span className="text-muted-foreground ml-1">
+                          ({formatDate(customDate)})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
             {/* Time Slot Availability Overview */}
             <div className="mb-6 p-4 bg-muted/30 rounded-lg">
               <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
