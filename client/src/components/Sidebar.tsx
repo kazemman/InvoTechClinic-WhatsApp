@@ -4,8 +4,9 @@ import { apiRequest, logout } from '@/lib/auth';
 import { 
   LayoutDashboard, UserPlus, Calendar, ClipboardCheck, 
   Users, UserRound, TrendingUp, Settings, Shield,
-  Hospital, X, CreditCard
+  X, CreditCard
 } from 'lucide-react';
+import invoTechLogo from '@assets/invotech-high-resolution-logo (1)_1757968142020.png';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -62,9 +63,11 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Hospital className="text-primary-foreground w-4 h-4" />
-            </div>
+            <img 
+              src={invoTechLogo} 
+              alt="InvoTech Logo" 
+              className="w-10 h-10 object-contain"
+            />
             <div>
               <h1 className="text-lg font-semibold text-foreground">InvoTech</h1>
               <p className="text-sm text-muted-foreground">Clinic Management</p>
