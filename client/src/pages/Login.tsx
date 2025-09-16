@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Hospital, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import invoTechLogo from '@assets/invotech-high-resolution-logo (1)_1757968142020.png';
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -61,8 +62,12 @@ export default function Login() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-lg flex items-center justify-center mb-4">
-            <Hospital className="text-primary-foreground w-8 h-8" />
+          <div className="mx-auto w-20 h-20 flex items-center justify-center mb-4">
+            <img 
+              src={invoTechLogo} 
+              alt="InvoTech Logo" 
+              className="w-16 h-16 object-contain"
+            />
           </div>
           <CardTitle className="text-2xl font-bold">InvoTech Clinic</CardTitle>
           <CardDescription>
