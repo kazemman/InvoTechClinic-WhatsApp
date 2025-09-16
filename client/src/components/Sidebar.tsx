@@ -4,9 +4,10 @@ import { apiRequest, logout } from '@/lib/auth';
 import { 
   LayoutDashboard, UserPlus, Calendar, ClipboardCheck, 
   Users, UserRound, TrendingUp, Settings, Shield,
-  X, CreditCard
+  X, CreditCard, Sun, Moon
 } from 'lucide-react';
 import invoTechLogo from '@assets/invotech-high-resolution-logo (1)_1757968142020.png';
+import { useTheme } from './ThemeProvider';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
   const [location] = useLocation();
+  const { theme, toggleTheme } = useTheme();
   
   const { data: user } = useQuery({
     queryKey: ['/api/auth/me'],
@@ -140,8 +142,18 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
           })}
         </nav>
 
-        {/* Logout */}
-        <div className="p-4 border-t border-border">
+        {/* Theme Toggle & Logout */}
+        <div className="p-4 border-t border-border space-y-2">
+          <button 
+            onClick={toggleTheme}
+            data-testid="button-toggle-theme"
+            className="flex items-center space-x-3 px-3 py-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors w-full"
+            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          >
+            {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+          </button>
+          
           <button 
             onClick={logout}
             data-testid="button-logout"
