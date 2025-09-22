@@ -47,6 +47,15 @@ export default function BusinessInsights() {
     },
   });
 
+  // Fetch monthly comparison data
+  const { data: monthlyData } = useQuery({
+    queryKey: ['/api/dashboard/monthly-stats'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/dashboard/monthly-stats?months=6');
+      return res.json();
+    },
+  });
+
   // Calculate approved medical aid claim revenue within date range
   const approvedClaimsRevenue = medicalAidClaims ? 
     medicalAidClaims
@@ -407,6 +416,136 @@ export default function BusinessInsights() {
               <p className="text-muted-foreground">Success Rate</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Monthly Comparison - Peak Periods Analysis */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            Monthly Performance Comparison
+          </CardTitle>
+          <CardDescription>
+            Compare performance across months to identify peak periods
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {monthlyData && monthlyData.monthlyData?.length > 0 ? (
+            <div className="space-y-6">
+              {/* Peak Periods Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                <div className="text-center">
+                  <h4 className="text-lg font-semibold text-green-600">
+                    Peak Revenue Month
+                  </h4>
+                  {(() => {
+                    const peakRevenueMonth = monthlyData.monthlyData.reduce((max: any, month: any) => 
+                      month.revenue > max.revenue ? month : max
+                    );
+                    return (
+                      <div>
+                        <p className="font-bold text-xl">{peakRevenueMonth.month} {peakRevenueMonth.year}</p>
+                        <p className="text-sm text-muted-foreground">R{peakRevenueMonth.revenue.toLocaleString()}</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="text-center">
+                  <h4 className="text-lg font-semibold text-blue-600">
+                    Busiest Month
+                  </h4>
+                  {(() => {
+                    const busiestMonth = monthlyData.monthlyData.reduce((max: any, month: any) => 
+                      month.appointments > max.appointments ? month : max
+                    );
+                    return (
+                      <div>
+                        <p className="font-bold text-xl">{busiestMonth.month} {busiestMonth.year}</p>
+                        <p className="text-sm text-muted-foreground">{busiestMonth.appointments} appointments</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Monthly Data Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2 font-medium">Month</th>
+                      <th className="text-right p-2 font-medium">Revenue</th>
+                      <th className="text-right p-2 font-medium">Appointments</th>
+                      <th className="text-right p-2 font-medium">New Patients</th>
+                      <th className="text-right p-2 font-medium">Success Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyData.monthlyData.map((month: any, index: number) => {
+                      const isHighRevenue = month.revenue === Math.max(...monthlyData.monthlyData.map((m: any) => m.revenue));
+                      const isHighAppointments = month.appointments === Math.max(...monthlyData.monthlyData.map((m: any) => m.appointments));
+                      
+                      return (
+                        <tr 
+                          key={index} 
+                          className="border-b hover:bg-muted/20"
+                          data-testid={`monthly-data-row-${month.month.toLowerCase()}-${month.year}`}
+                        >
+                          <td className="p-2 font-medium">
+                            {month.month} {month.year}
+                          </td>
+                          <td className={`p-2 text-right font-mono ${isHighRevenue ? 'text-green-600 font-bold' : ''}`}>
+                            R{month.revenue.toLocaleString()}
+                            {isHighRevenue && <span className="ml-1 text-xs">📈</span>}
+                          </td>
+                          <td className={`p-2 text-right ${isHighAppointments ? 'text-blue-600 font-bold' : ''}`}>
+                            {month.appointments}
+                            {isHighAppointments && <span className="ml-1 text-xs">👥</span>}
+                          </td>
+                          <td className="p-2 text-right">
+                            {month.patients}
+                          </td>
+                          <td className={`p-2 text-right ${month.completionRate >= 90 ? 'text-green-600' : month.completionRate < 70 ? 'text-red-600' : ''}`}>
+                            {month.completionRate}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Performance Insights */}
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Peak Period Insights</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-700 dark:text-blue-300">
+                  {(() => {
+                    const avgRevenue = monthlyData.monthlyData.reduce((sum: number, month: any) => sum + month.revenue, 0) / monthlyData.monthlyData.length;
+                    const avgAppointments = monthlyData.monthlyData.reduce((sum: number, month: any) => sum + month.appointments, 0) / monthlyData.monthlyData.length;
+                    
+                    return (
+                      <>
+                        <div>
+                          <p><strong>Average Monthly Revenue:</strong> R{Math.round(avgRevenue).toLocaleString()}</p>
+                          <p><strong>Average Monthly Appointments:</strong> {Math.round(avgAppointments)}</p>
+                        </div>
+                        <div>
+                          <p><strong>Total Patients (6 months):</strong> {monthlyData.monthlyData.reduce((sum: number, month: any) => sum + month.patients, 0)}</p>
+                          <p><strong>Best Success Rate:</strong> {Math.max(...monthlyData.monthlyData.map((m: any) => m.completionRate))}%</p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p>Loading monthly comparison data...</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

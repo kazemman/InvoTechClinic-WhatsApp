@@ -81,6 +81,18 @@ export interface IStorage {
     todayRevenue: number;
     newPatients: number;
   }>;
+
+  // Monthly comparison stats
+  getMonthlyStats(monthsBack: number): Promise<{
+    monthlyData: Array<{
+      month: string;
+      year: number;
+      revenue: number;
+      appointments: number;
+      patients: number;
+      completionRate: number;
+    }>;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
