@@ -129,6 +129,7 @@ export const medicalAidClaims = pgTable("medical_aid_claims", {
   status: medicalAidClaimStatusEnum("status").default("pending").notNull(),
   submittedAt: timestamp("submitted_at"),
   approvedAt: timestamp("approved_at"),
+  claimAmount: decimal("claim_amount", { precision: 10, scale: 2 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => {

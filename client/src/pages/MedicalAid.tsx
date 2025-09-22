@@ -58,7 +58,8 @@ export default function MedicalAid() {
       status: claim.status,
       notes: claim.notes || '',
       submittedAt: claim.submittedAt ? new Date(claim.submittedAt).toISOString().slice(0, 16) : '',
-      approvedAt: claim.approvedAt ? new Date(claim.approvedAt).toISOString().slice(0, 16) : ''
+      approvedAt: claim.approvedAt ? new Date(claim.approvedAt).toISOString().slice(0, 16) : '',
+      claimAmount: claim.claimAmount || ''
     });
   };
 
@@ -382,6 +383,20 @@ export default function MedicalAid() {
                   value={updateData.approvedAt}
                   onChange={(e) => setUpdateData({...updateData, approvedAt: e.target.value})}
                   data-testid="input-approved-at"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="claimAmount">Claim Amount (R)</Label>
+                <Input
+                  id="claimAmount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={updateData.claimAmount}
+                  onChange={(e) => setUpdateData({...updateData, claimAmount: e.target.value})}
+                  data-testid="input-claim-amount"
                 />
               </div>
 
