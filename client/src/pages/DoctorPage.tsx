@@ -28,6 +28,8 @@ export default function DoctorPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isEditingAllergies, setIsEditingAllergies] = useState(false);
+  const [allergiesValue, setAllergiesValue] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -146,6 +148,9 @@ export default function DoctorPage() {
     // Reset file upload state
     setSelectedFiles([]);
     setUploadedAttachments([]);
+    // Reset allergies editing state
+    setIsEditingAllergies(false);
+    setAllergiesValue(queueItem.patient?.allergies || '');
   };
 
   // File upload handlers
@@ -309,6 +314,52 @@ export default function DoctorPage() {
     // Reset file upload state
     setSelectedFiles([]);
     setUploadedAttachments([]);
+    // Reset allergies editing state
+    setIsEditingAllergies(false);
+    setAllergiesValue(patient?.allergies || '');
+  };
+
+  // Allergies update mutation
+  const updateAllergiesMutation = useMutation({
+    mutationFn: async ({ patientId, allergies }: { patientId: string, allergies: string }) => {
+      const res = await apiRequest('PUT', `/api/patients/${patientId}`, { allergies });
+      return res.json();
+    },
+    onSuccess: (updatedPatient) => {
+      toast({
+        title: 'Allergies Updated',
+        description: 'Patient allergies have been updated successfully.',
+      });
+      setSelectedPatient({ ...selectedPatient, allergies: updatedPatient.allergies });
+      setIsEditingAllergies(false);
+      // Invalidate patient search queries to reflect the change
+      queryClient.invalidateQueries({ queryKey: ['/api/patients/search'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Update Failed',
+        description: error.message || 'Failed to update allergies',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const startEditingAllergies = () => {
+    setIsEditingAllergies(true);
+    setAllergiesValue(selectedPatient?.allergies || '');
+  };
+
+  const saveAllergies = () => {
+    if (!selectedPatient) return;
+    updateAllergiesMutation.mutate({
+      patientId: selectedPatient.id,
+      allergies: allergiesValue,
+    });
+  };
+
+  const cancelEditingAllergies = () => {
+    setIsEditingAllergies(false);
+    setAllergiesValue(selectedPatient?.allergies || '');
   };
 
   const getStatusBadgeClass = (status: string) => {
@@ -472,7 +523,56 @@ export default function DoctorPage() {
                   </div>
                   
                   <div className="border-t pt-3">
-                    <p className="text-sm"><strong>Allergies:</strong> {selectedPatient.allergies || 'None recorded'}</p>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium mb-1">Allergies:</p>
+                        {isEditingAllergies ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              value={allergiesValue}
+                              onChange={(e) => setAllergiesValue(e.target.value)}
+                              placeholder="List any known allergies or medications to avoid..."
+                              className="min-h-[80px] text-sm"
+                              data-testid="textarea-edit-allergies"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={saveAllergies}
+                                disabled={updateAllergiesMutation.isPending}
+                                data-testid="button-save-allergies"
+                              >
+                                {updateAllergiesMutation.isPending ? 'Saving...' : 'Save'}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={cancelEditingAllergies}
+                                disabled={updateAllergiesMutation.isPending}
+                                data-testid="button-cancel-allergies"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-muted-foreground flex-1" data-testid="text-allergies-display">
+                              {selectedPatient.allergies || 'None recorded'}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={startEditingAllergies}
+                              className="h-auto px-2 py-1 text-xs"
+                              data-testid="button-edit-allergies"
+                            >
+                              Edit
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   
                   {selectedPatient.medicalAidScheme && (
