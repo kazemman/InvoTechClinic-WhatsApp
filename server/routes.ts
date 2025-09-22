@@ -97,13 +97,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { email, password } = loginSchema.parse(req.body);
       
       const user = await storage.getUserByEmail(email);
-      if (!user || !user.isActive) {
-        return res.status(401).json({ message: 'Invalid credentials' });
+      if (!user) {
+        return res.status(401).json({ message: 'No account found with this email address' });
+      }
+      
+      if (!user.isActive) {
+        return res.status(401).json({ message: 'Account is disabled. Please contact an administrator' });
       }
 
       const isValid = await verifyPassword(password, user.passwordHash);
       if (!isValid) {
-        return res.status(401).json({ message: 'Invalid credentials' });
+        return res.status(401).json({ message: 'Password is incorrect. Please check your password and try again' });
       }
 
       const token = generateToken(user.id);
