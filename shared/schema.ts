@@ -33,6 +33,7 @@ export const patients = pgTable("patients", {
   address: text("address"),
   medicalAidScheme: text("medical_aid_scheme"),
   medicalAidNumber: text("medical_aid_number"),
+  allergies: text("allergies"),
   photoUrl: text("photo_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
