@@ -60,7 +60,7 @@ export default function PatientRegistration() {
       const res = await apiRequest('GET', `/api/patients/search?q=${encodeURIComponent(searchQuery)}`);
       return res.json();
     },
-    enabled: searchQuery.length > 2,
+    enabled: searchQuery.length >= 2,
   });
 
   const createPatientMutation = useMutation({
