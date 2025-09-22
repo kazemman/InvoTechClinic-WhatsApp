@@ -653,13 +653,13 @@ export default function BusinessInsights() {
                       <tr className="border-b">
                         <th className="text-left p-2 font-medium">Month</th>
                         <th className="text-right p-2 font-medium">New Registrations</th>
-                        <th className="text-right p-2 font-medium">Returning Visits</th>
+                        <th className="text-right p-2 font-medium">Returning Patients</th>
                         <th className="text-right p-2 font-medium">Total Activity</th>
                       </tr>
                     </thead>
                     <tbody>
                       {patientRetentionData.registrationTrends.map((trend: any, index: number) => {
-                        const totalActivity = trend.newRegistrations + trend.returningVisits;
+                        const totalActivity = trend.newRegistrations + trend.returningPatients;
                         const isHighActivity = totalActivity > 10; // Highlight months with high activity
                         
                         return (
@@ -675,7 +675,7 @@ export default function BusinessInsights() {
                               {trend.newRegistrations}
                             </td>
                             <td className="p-2 text-right text-blue-600 font-mono">
-                              {trend.returningVisits}
+                              {trend.returningPatients}
                             </td>
                             <td className={`p-2 text-right font-bold ${isHighActivity ? 'text-purple-600' : ''}`}>
                               {totalActivity}
@@ -702,8 +702,8 @@ export default function BusinessInsights() {
                     const totalNewRegistrations = patientRetentionData.registrationTrends.reduce(
                       (sum: number, trend: any) => sum + trend.newRegistrations, 0
                     );
-                    const totalReturningVisits = patientRetentionData.registrationTrends.reduce(
-                      (sum: number, trend: any) => sum + trend.returningVisits, 0
+                    const totalReturningPatients = patientRetentionData.registrationTrends.reduce(
+                      (sum: number, trend: any) => sum + trend.returningPatients, 0
                     );
                     
                     return (
@@ -713,7 +713,7 @@ export default function BusinessInsights() {
                           <p><strong>New Registrations (6 months):</strong> {totalNewRegistrations}</p>
                         </div>
                         <div>
-                          <p><strong>Return Visits (6 months):</strong> {totalReturningVisits}</p>
+                          <p><strong>Returning Patients (6 months):</strong> {totalReturningPatients}</p>
                           <p><strong>Patient Loyalty Score:</strong> {patientRetentionData.newVsReturning.returningPatientRate}%</p>
                         </div>
                       </>

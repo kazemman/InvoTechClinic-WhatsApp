@@ -687,7 +687,7 @@ export class DatabaseStorage implements IStorage {
       month: string;
       year: number;
       newRegistrations: number;
-      returningVisits: number;
+      returningPatients: number;
     }>;
     retentionRates: {
       thirtyDay: number;
@@ -696,28 +696,39 @@ export class DatabaseStorage implements IStorage {
     };
   }> {
     const currentDate = new Date();
-    const thirtyDaysAgo = new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sixtyDaysAgo = new Date(currentDate.getTime() - 60 * 24 * 60 * 60 * 1000);
-    const ninetyDaysAgo = new Date(currentDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const currentMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const currentMonthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    // Get all patients grouped by their first visit vs subsequent visits
-    const allPatients = await db.select().from(patients);
-    
-    // Get patient visit counts (appointments or check-ins)
-    const patientVisitCounts = await db.select({
+    // Get all completed appointments to analyze patient behavior
+    const allAppointments = await db.select({
       patientId: appointments.patientId,
-      visitCount: sql<number>`COUNT(*)`
+      appointmentDate: appointments.appointmentDate
     })
       .from(appointments)
       .where(eq(appointments.status, 'completed'))
-      .groupBy(appointments.patientId);
+      .orderBy(appointments.appointmentDate);
 
-    // Calculate new vs returning patients
+    // Create map of patient first appointment dates
+    const patientFirstVisit = new Map<string, Date>();
+    allAppointments.forEach(apt => {
+      if (!patientFirstVisit.has(apt.patientId) || apt.appointmentDate < patientFirstVisit.get(apt.patientId)!) {
+        patientFirstVisit.set(apt.patientId, apt.appointmentDate);
+      }
+    });
+
+    // Get appointments in current month
+    const currentMonthAppointments = allAppointments.filter(apt => 
+      apt.appointmentDate >= currentMonthStart && apt.appointmentDate <= currentMonthEnd
+    );
+
+    // Calculate new vs returning for current month
+    const currentMonthPatients = new Set(currentMonthAppointments.map(apt => apt.patientId));
     let newPatients = 0;
     let returningPatients = 0;
-    
-    patientVisitCounts.forEach(patient => {
-      if (patient.visitCount === 1) {
+
+    currentMonthPatients.forEach(patientId => {
+      const firstVisit = patientFirstVisit.get(patientId);
+      if (firstVisit && firstVisit >= currentMonthStart && firstVisit <= currentMonthEnd) {
         newPatients++;
       } else {
         returningPatients++;
@@ -730,86 +741,81 @@ export class DatabaseStorage implements IStorage {
 
     // Calculate registration trends for last 6 months
     const registrationTrends = [];
+    
+    // Get all patient registrations for the period
+    const sixMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5, 1);
+    const allPatientRegistrations = await db.select({
+      id: patients.id,
+      createdAt: patients.createdAt
+    })
+      .from(patients)
+      .where(gte(patients.createdAt, sixMonthsAgo));
+
     for (let i = 5; i >= 0; i--) {
       const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
       const endOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59, 999);
 
       // New registrations in this month
-      const newRegistrations = await db.select({ count: sql<number>`COUNT(*)` })
-        .from(patients)
-        .where(and(
-          gte(patients.createdAt, startOfMonth),
-          lte(patients.createdAt, endOfMonth)
-        ));
+      const newRegistrations = allPatientRegistrations.filter(p => 
+        p.createdAt >= startOfMonth && p.createdAt <= endOfMonth
+      ).length;
 
-      // Returning visits in this month (completed appointments by existing patients)
-      const returningVisits = await db.select({ count: sql<number>`COUNT(*)` })
-        .from(appointments)
-        .innerJoin(patients, eq(appointments.patientId, patients.id))
-        .where(and(
-          eq(appointments.status, 'completed'),
-          gte(appointments.appointmentDate, startOfMonth),
-          lte(appointments.appointmentDate, endOfMonth),
-          lte(patients.createdAt, startOfMonth) // Patient was created before this month
-        ));
+      // Returning patients (unique patients with appointments in this month who had first visit before this month)
+      const monthAppointments = allAppointments.filter(apt => 
+        apt.appointmentDate >= startOfMonth && apt.appointmentDate <= endOfMonth
+      );
+      
+      const returningPatientsInMonth = new Set();
+      monthAppointments.forEach(apt => {
+        const firstVisit = patientFirstVisit.get(apt.patientId);
+        if (firstVisit && firstVisit < startOfMonth) {
+          returningPatientsInMonth.add(apt.patientId);
+        }
+      });
 
       registrationTrends.push({
         month: targetDate.toLocaleDateString('en-US', { month: 'long' }),
         year: targetDate.getFullYear(),
-        newRegistrations: newRegistrations[0]?.count || 0,
-        returningVisits: returningVisits[0]?.count || 0
+        newRegistrations,
+        returningPatients: returningPatientsInMonth.size
       });
     }
 
-    // Calculate retention rates (simplified approach)
-    // Count patients registered 30+ days ago
-    const thirtyDayTotal = await db.select({ count: sql<number>`COUNT(*)` })
-      .from(patients)
-      .where(lte(patients.createdAt, thirtyDaysAgo));
+    // Calculate cohort-based retention rates
+    const thirtyDaysAgo = new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(currentDate.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const ninetyDaysAgo = new Date(currentDate.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-    // Count patients who registered 30+ days ago and have completed appointments since then
-    const thirtyDayRetained = await db.select({ count: sql<number>`COUNT(DISTINCT ${patients.id})` })
-      .from(patients)
-      .innerJoin(appointments, eq(appointments.patientId, patients.id))
-      .where(and(
-        lte(patients.createdAt, thirtyDaysAgo),
-        eq(appointments.status, 'completed'),
-        sql`${appointments.appointmentDate} > ${patients.createdAt} + INTERVAL '1 day'`
-      ));
+    // For retention rates, we need patients whose first visit was in each period
+    // and check if they returned within the timeframe
+    const calculateRetentionRate = (periodStart: Date): number => {
+      const periodEnd = new Date(periodStart.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days after period start
+      
+      // Find patients whose first visit was in this period
+      const cohortPatients = Array.from(patientFirstVisit.entries()).filter(([_, firstVisit]) => 
+        firstVisit >= periodStart && firstVisit < periodEnd
+      );
 
-    const sixtyDayTotal = await db.select({ count: sql<number>`COUNT(*)` })
-      .from(patients)
-      .where(lte(patients.createdAt, sixtyDaysAgo));
+      if (cohortPatients.length === 0) return 0;
 
-    const sixtyDayRetained = await db.select({ count: sql<number>`COUNT(DISTINCT ${patients.id})` })
-      .from(patients)
-      .innerJoin(appointments, eq(appointments.patientId, patients.id))
-      .where(and(
-        lte(patients.createdAt, sixtyDaysAgo),
-        eq(appointments.status, 'completed'),
-        sql`${appointments.appointmentDate} > ${patients.createdAt} + INTERVAL '1 day'`
-      ));
+      // Check how many returned after their first visit
+      let retainedCount = 0;
+      cohortPatients.forEach(([patientId, firstVisit]) => {
+        const laterAppointments = allAppointments.filter(apt => 
+          apt.patientId === patientId && apt.appointmentDate > firstVisit
+        );
+        if (laterAppointments.length > 0) {
+          retainedCount++;
+        }
+      });
 
-    const ninetyDayTotal = await db.select({ count: sql<number>`COUNT(*)` })
-      .from(patients)
-      .where(lte(patients.createdAt, ninetyDaysAgo));
+      return Math.round((retainedCount / cohortPatients.length) * 100);
+    };
 
-    const ninetyDayRetained = await db.select({ count: sql<number>`COUNT(DISTINCT ${patients.id})` })
-      .from(patients)
-      .innerJoin(appointments, eq(appointments.patientId, patients.id))
-      .where(and(
-        lte(patients.createdAt, ninetyDaysAgo),
-        eq(appointments.status, 'completed'),
-        sql`${appointments.appointmentDate} > ${patients.createdAt} + INTERVAL '1 day'`
-      ));
-
-    const thirtyDayRate = thirtyDayTotal[0]?.count > 0 
-      ? Math.round((thirtyDayRetained[0]?.count / thirtyDayTotal[0]?.count) * 100) : 0;
-    const sixtyDayRate = sixtyDayTotal[0]?.count > 0 
-      ? Math.round((sixtyDayRetained[0]?.count / sixtyDayTotal[0]?.count) * 100) : 0;
-    const ninetyDayRate = ninetyDayTotal[0]?.count > 0 
-      ? Math.round((ninetyDayRetained[0]?.count / ninetyDayTotal[0]?.count) * 100) : 0;
+    const thirtyDayRate = calculateRetentionRate(thirtyDaysAgo);
+    const sixtyDayRate = calculateRetentionRate(sixtyDaysAgo);
+    const ninetyDayRate = calculateRetentionRate(ninetyDaysAgo);
 
     return {
       newVsReturning: {
