@@ -1041,6 +1041,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Patient retention analytics
+  app.get('/api/dashboard/patient-retention', authenticateToken, async (req, res) => {
+    try {
+      const stats = await storage.getPatientRetentionStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch patient retention stats:', error);
+      res.status(500).json({ message: 'Failed to fetch patient retention stats' });
+    }
+  });
+
   // Activity logs
   app.get('/api/activity-logs', authenticateToken, requireRole(['admin']), async (req, res) => {
     try {

@@ -56,6 +56,15 @@ export default function BusinessInsights() {
     },
   });
 
+  // Fetch patient retention data
+  const { data: patientRetentionData } = useQuery({
+    queryKey: ['/api/dashboard/patient-retention'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/dashboard/patient-retention');
+      return res.json();
+    },
+  });
+
   // Calculate approved medical aid claim revenue within date range
   const approvedClaimsRevenue = medicalAidClaims ? 
     medicalAidClaims
@@ -544,6 +553,179 @@ export default function BusinessInsights() {
             <div className="text-center py-8 text-muted-foreground">
               <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
               <p>Loading monthly comparison data...</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* New vs. Returning Patients Analytics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            New vs. Returning Patients
+          </CardTitle>
+          <CardDescription>
+            Registration trends and patient retention analysis
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {patientRetentionData ? (
+            <div className="space-y-6">
+              {/* Overview Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center p-4 border rounded-lg bg-green-50 dark:bg-green-950">
+                  <h4 className="text-lg font-semibold text-green-600">New Patients</h4>
+                  <p className="text-3xl font-bold text-green-700" data-testid="text-new-patients">
+                    {patientRetentionData.newVsReturning.newPatients}
+                  </p>
+                  <p className="text-sm text-green-600">
+                    {patientRetentionData.newVsReturning.newPatientRate}% of total
+                  </p>
+                </div>
+                <div className="text-center p-4 border rounded-lg bg-blue-50 dark:bg-blue-950">
+                  <h4 className="text-lg font-semibold text-blue-600">Returning Patients</h4>
+                  <p className="text-3xl font-bold text-blue-700" data-testid="text-returning-patients">
+                    {patientRetentionData.newVsReturning.returningPatients}
+                  </p>
+                  <p className="text-sm text-blue-600">
+                    {patientRetentionData.newVsReturning.returningPatientRate}% of total
+                  </p>
+                </div>
+                <div className="text-center p-4 border rounded-lg bg-purple-50 dark:bg-purple-950">
+                  <h4 className="text-lg font-semibold text-purple-600">Total Active</h4>
+                  <p className="text-3xl font-bold text-purple-700" data-testid="text-total-active-patients">
+                    {patientRetentionData.newVsReturning.totalPatients}
+                  </p>
+                  <p className="text-sm text-purple-600">Active patients</p>
+                </div>
+              </div>
+
+              {/* Retention Rates */}
+              <div className="bg-muted/30 rounded-lg p-4">
+                <h4 className="font-semibold mb-4">Patient Retention Rates</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-orange-600" data-testid="text-30-day-retention">
+                      {patientRetentionData.retentionRates.thirtyDay}%
+                    </p>
+                    <p className="text-sm text-muted-foreground">30-Day Retention</p>
+                    <div className="w-full bg-muted rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-orange-500 h-2 rounded-full" 
+                        style={{ width: `${patientRetentionData.retentionRates.thirtyDay}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-yellow-600" data-testid="text-60-day-retention">
+                      {patientRetentionData.retentionRates.sixtyDay}%
+                    </p>
+                    <p className="text-sm text-muted-foreground">60-Day Retention</p>
+                    <div className="w-full bg-muted rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-yellow-500 h-2 rounded-full" 
+                        style={{ width: `${patientRetentionData.retentionRates.sixtyDay}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-red-600" data-testid="text-90-day-retention">
+                      {patientRetentionData.retentionRates.ninetyDay}%
+                    </p>
+                    <p className="text-sm text-muted-foreground">90-Day Retention</p>
+                    <div className="w-full bg-muted rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-red-500 h-2 rounded-full" 
+                        style={{ width: `${patientRetentionData.retentionRates.ninetyDay}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Registration Trends Table */}
+              <div>
+                <h4 className="font-semibold mb-3">6-Month Registration Trends</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">Month</th>
+                        <th className="text-right p-2 font-medium">New Registrations</th>
+                        <th className="text-right p-2 font-medium">Returning Visits</th>
+                        <th className="text-right p-2 font-medium">Total Activity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {patientRetentionData.registrationTrends.map((trend: any, index: number) => {
+                        const totalActivity = trend.newRegistrations + trend.returningVisits;
+                        const isHighActivity = totalActivity > 10; // Highlight months with high activity
+                        
+                        return (
+                          <tr 
+                            key={index} 
+                            className="border-b hover:bg-muted/20"
+                            data-testid={`registration-trend-row-${trend.month.toLowerCase()}-${trend.year}`}
+                          >
+                            <td className="p-2 font-medium">
+                              {trend.month} {trend.year}
+                            </td>
+                            <td className="p-2 text-right text-green-600 font-mono">
+                              {trend.newRegistrations}
+                            </td>
+                            <td className="p-2 text-right text-blue-600 font-mono">
+                              {trend.returningVisits}
+                            </td>
+                            <td className={`p-2 text-right font-bold ${isHighActivity ? 'text-purple-600' : ''}`}>
+                              {totalActivity}
+                              {isHighActivity && <span className="ml-1 text-xs">🔥</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Key Insights */}
+              <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
+                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Patient Retention Insights</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-700 dark:text-blue-300">
+                  {(() => {
+                    const bestRetentionRate = Math.max(
+                      patientRetentionData.retentionRates.thirtyDay,
+                      patientRetentionData.retentionRates.sixtyDay,
+                      patientRetentionData.retentionRates.ninetyDay
+                    );
+                    const totalNewRegistrations = patientRetentionData.registrationTrends.reduce(
+                      (sum: number, trend: any) => sum + trend.newRegistrations, 0
+                    );
+                    const totalReturningVisits = patientRetentionData.registrationTrends.reduce(
+                      (sum: number, trend: any) => sum + trend.returningVisits, 0
+                    );
+                    
+                    return (
+                      <>
+                        <div>
+                          <p><strong>Best Retention Rate:</strong> {bestRetentionRate}%</p>
+                          <p><strong>New Registrations (6 months):</strong> {totalNewRegistrations}</p>
+                        </div>
+                        <div>
+                          <p><strong>Return Visits (6 months):</strong> {totalReturningVisits}</p>
+                          <p><strong>Patient Loyalty Score:</strong> {patientRetentionData.newVsReturning.returningPatientRate}%</p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p>Loading patient retention analytics...</p>
             </div>
           )}
         </CardContent>

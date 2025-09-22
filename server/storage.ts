@@ -93,6 +93,28 @@ export interface IStorage {
       completionRate: number;
     }>;
   }>;
+
+  // Patient retention and trends analytics
+  getPatientRetentionStats(): Promise<{
+    newVsReturning: {
+      newPatients: number;
+      returningPatients: number;
+      totalPatients: number;
+      newPatientRate: number;
+      returningPatientRate: number;
+    };
+    registrationTrends: Array<{
+      month: string;
+      year: number;
+      newRegistrations: number;
+      returningVisits: number;
+    }>;
+    retentionRates: {
+      thirtyDay: number;
+      sixtyDay: number;
+      ninetyDay: number;
+    };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -649,6 +671,160 @@ export class DatabaseStorage implements IStorage {
 
     return {
       monthlyData: monthlyData.reverse() // Reverse to show oldest to newest
+    };
+  }
+
+  // Patient retention and trends analytics
+  async getPatientRetentionStats(): Promise<{
+    newVsReturning: {
+      newPatients: number;
+      returningPatients: number;
+      totalPatients: number;
+      newPatientRate: number;
+      returningPatientRate: number;
+    };
+    registrationTrends: Array<{
+      month: string;
+      year: number;
+      newRegistrations: number;
+      returningVisits: number;
+    }>;
+    retentionRates: {
+      thirtyDay: number;
+      sixtyDay: number;
+      ninetyDay: number;
+    };
+  }> {
+    const currentDate = new Date();
+    const thirtyDaysAgo = new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(currentDate.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const ninetyDaysAgo = new Date(currentDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    // Get all patients grouped by their first visit vs subsequent visits
+    const allPatients = await db.select().from(patients);
+    
+    // Get patient visit counts (appointments or check-ins)
+    const patientVisitCounts = await db.select({
+      patientId: appointments.patientId,
+      visitCount: sql<number>`COUNT(*)`
+    })
+      .from(appointments)
+      .where(eq(appointments.status, 'completed'))
+      .groupBy(appointments.patientId);
+
+    // Calculate new vs returning patients
+    let newPatients = 0;
+    let returningPatients = 0;
+    
+    patientVisitCounts.forEach(patient => {
+      if (patient.visitCount === 1) {
+        newPatients++;
+      } else {
+        returningPatients++;
+      }
+    });
+
+    const totalPatients = newPatients + returningPatients;
+    const newPatientRate = totalPatients > 0 ? Math.round((newPatients / totalPatients) * 100) : 0;
+    const returningPatientRate = totalPatients > 0 ? Math.round((returningPatients / totalPatients) * 100) : 0;
+
+    // Calculate registration trends for last 6 months
+    const registrationTrends = [];
+    for (let i = 5; i >= 0; i--) {
+      const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const endOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      // New registrations in this month
+      const newRegistrations = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(patients)
+        .where(and(
+          gte(patients.createdAt, startOfMonth),
+          lte(patients.createdAt, endOfMonth)
+        ));
+
+      // Returning visits in this month (completed appointments by existing patients)
+      const returningVisits = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(appointments)
+        .innerJoin(patients, eq(appointments.patientId, patients.id))
+        .where(and(
+          eq(appointments.status, 'completed'),
+          gte(appointments.appointmentDate, startOfMonth),
+          lte(appointments.appointmentDate, endOfMonth),
+          lte(patients.createdAt, startOfMonth) // Patient was created before this month
+        ));
+
+      registrationTrends.push({
+        month: targetDate.toLocaleDateString('en-US', { month: 'long' }),
+        year: targetDate.getFullYear(),
+        newRegistrations: newRegistrations[0]?.count || 0,
+        returningVisits: returningVisits[0]?.count || 0
+      });
+    }
+
+    // Calculate retention rates (simplified approach)
+    // Count patients registered 30+ days ago
+    const thirtyDayTotal = await db.select({ count: sql<number>`COUNT(*)` })
+      .from(patients)
+      .where(lte(patients.createdAt, thirtyDaysAgo));
+
+    // Count patients who registered 30+ days ago and have completed appointments since then
+    const thirtyDayRetained = await db.select({ count: sql<number>`COUNT(DISTINCT ${patients.id})` })
+      .from(patients)
+      .innerJoin(appointments, eq(appointments.patientId, patients.id))
+      .where(and(
+        lte(patients.createdAt, thirtyDaysAgo),
+        eq(appointments.status, 'completed'),
+        sql`${appointments.appointmentDate} > ${patients.createdAt} + INTERVAL '1 day'`
+      ));
+
+    const sixtyDayTotal = await db.select({ count: sql<number>`COUNT(*)` })
+      .from(patients)
+      .where(lte(patients.createdAt, sixtyDaysAgo));
+
+    const sixtyDayRetained = await db.select({ count: sql<number>`COUNT(DISTINCT ${patients.id})` })
+      .from(patients)
+      .innerJoin(appointments, eq(appointments.patientId, patients.id))
+      .where(and(
+        lte(patients.createdAt, sixtyDaysAgo),
+        eq(appointments.status, 'completed'),
+        sql`${appointments.appointmentDate} > ${patients.createdAt} + INTERVAL '1 day'`
+      ));
+
+    const ninetyDayTotal = await db.select({ count: sql<number>`COUNT(*)` })
+      .from(patients)
+      .where(lte(patients.createdAt, ninetyDaysAgo));
+
+    const ninetyDayRetained = await db.select({ count: sql<number>`COUNT(DISTINCT ${patients.id})` })
+      .from(patients)
+      .innerJoin(appointments, eq(appointments.patientId, patients.id))
+      .where(and(
+        lte(patients.createdAt, ninetyDaysAgo),
+        eq(appointments.status, 'completed'),
+        sql`${appointments.appointmentDate} > ${patients.createdAt} + INTERVAL '1 day'`
+      ));
+
+    const thirtyDayRate = thirtyDayTotal[0]?.count > 0 
+      ? Math.round((thirtyDayRetained[0]?.count / thirtyDayTotal[0]?.count) * 100) : 0;
+    const sixtyDayRate = sixtyDayTotal[0]?.count > 0 
+      ? Math.round((sixtyDayRetained[0]?.count / sixtyDayTotal[0]?.count) * 100) : 0;
+    const ninetyDayRate = ninetyDayTotal[0]?.count > 0 
+      ? Math.round((ninetyDayRetained[0]?.count / ninetyDayTotal[0]?.count) * 100) : 0;
+
+    return {
+      newVsReturning: {
+        newPatients,
+        returningPatients,
+        totalPatients,
+        newPatientRate,
+        returningPatientRate
+      },
+      registrationTrends,
+      retentionRates: {
+        thirtyDay: thirtyDayRate,
+        sixtyDay: sixtyDayRate,
+        ninetyDay: ninetyDayRate
+      }
     };
   }
 }
