@@ -107,7 +107,7 @@ export interface IStorage {
       month: string;
       year: number;
       newRegistrations: number;
-      returningVisits: number;
+      returningPatients: number;
     }>;
     retentionRates: {
       thirtyDay: number;
@@ -885,7 +885,7 @@ export class DatabaseStorage implements IStorage {
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-    const appointments = await db.select({
+    const appointmentData = await db.select({
       appointmentDate: appointments.appointmentDate
     })
       .from(appointments)
@@ -910,10 +910,10 @@ export class DatabaseStorage implements IStorage {
       percentage: 0
     }));
 
-    const totalAppointments = appointments.length;
+    const totalAppointments = appointmentData.length;
 
     // Process each appointment
-    appointments.forEach(apt => {
+    appointmentData.forEach((apt: { appointmentDate: Date }) => {
       const date = new Date(apt.appointmentDate);
       const hour = date.getHours();
       const dayOfWeek = date.getDay();

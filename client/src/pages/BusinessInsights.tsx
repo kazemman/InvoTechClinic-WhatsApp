@@ -65,6 +65,15 @@ export default function BusinessInsights() {
     },
   });
 
+  // Fetch peak hours analysis data
+  const { data: peakHoursData } = useQuery({
+    queryKey: ['/api/dashboard/peak-hours'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/dashboard/peak-hours');
+      return res.json();
+    },
+  });
+
   // Calculate approved medical aid claim revenue within date range
   const approvedClaimsRevenue = medicalAidClaims ? 
     medicalAidClaims
@@ -726,6 +735,181 @@ export default function BusinessInsights() {
             <div className="text-center py-8 text-muted-foreground">
               <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
               <p>Loading patient retention analytics...</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Peak Hours Analysis */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Peak Hours Analysis
+          </CardTitle>
+          <CardDescription>
+            Busiest times of day and week (last 3 months)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {peakHoursData ? (
+            <div className="space-y-6">
+              {/* Peak Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="text-center p-4 border rounded-lg bg-orange-50 dark:bg-orange-950">
+                  <h4 className="text-lg font-semibold text-orange-600">Peak Hour</h4>
+                  <p className="text-3xl font-bold text-orange-700" data-testid="text-peak-hour">
+                    {peakHoursData.peakHour.timeLabel}
+                  </p>
+                  <p className="text-sm text-orange-600">
+                    {peakHoursData.peakHour.count} appointments
+                  </p>
+                </div>
+                <div className="text-center p-4 border rounded-lg bg-indigo-50 dark:bg-indigo-950">
+                  <h4 className="text-lg font-semibold text-indigo-600">Peak Day</h4>
+                  <p className="text-3xl font-bold text-indigo-700" data-testid="text-peak-day">
+                    {peakHoursData.peakDay.day}
+                  </p>
+                  <p className="text-sm text-indigo-600">
+                    {peakHoursData.peakDay.count} appointments
+                  </p>
+                </div>
+              </div>
+
+              {/* Hourly Distribution */}
+              <div>
+                <h4 className="font-semibold mb-3">Hourly Distribution</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                  {peakHoursData.hourlyDistribution.map((hourData: any) => {
+                    const isBusinessHour = hourData.hour >= 8 && hourData.hour <= 17;
+                    const isPeakHour = hourData.hour === peakHoursData.peakHour.hour;
+                    const formatTime = (hour: number) => {
+                      if (hour === 0) return '12 AM';
+                      if (hour < 12) return `${hour} AM`;
+                      if (hour === 12) return '12 PM';
+                      return `${hour - 12} PM`;
+                    };
+                    
+                    return (
+                      <div
+                        key={hourData.hour}
+                        className={`p-2 text-center rounded border-2 ${
+                          isPeakHour
+                            ? 'bg-orange-100 dark:bg-orange-900 border-orange-400'
+                            : isBusinessHour
+                            ? 'bg-blue-50 dark:bg-blue-950 border-blue-200'
+                            : 'bg-gray-50 dark:bg-gray-900 border-gray-200'
+                        }`}
+                        data-testid={`hour-block-${hourData.hour}`}
+                      >
+                        <div className="text-xs font-medium">
+                          {formatTime(hourData.hour)}
+                        </div>
+                        <div className="font-bold text-sm">
+                          {hourData.count}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {hourData.percentage}%
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-4 mt-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-100 border-2 border-orange-400 rounded"></div>
+                    <span>Peak Hour</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-blue-50 border-2 border-blue-200 rounded"></div>
+                    <span>Business Hours (8 AM - 5 PM)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-gray-50 border-2 border-gray-200 rounded"></div>
+                    <span>After Hours</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Daily Distribution */}
+              <div>
+                <h4 className="font-semibold mb-3">Daily Distribution</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {peakHoursData.dailyDistribution.map((dayData: any) => {
+                    const isPeakDay = dayData.day === peakHoursData.peakDay.day;
+                    const isWeekend = dayData.dayNumber === 0 || dayData.dayNumber === 6;
+                    
+                    return (
+                      <div
+                        key={dayData.day}
+                        className={`p-4 text-center rounded-lg border-2 ${
+                          isPeakDay
+                            ? 'bg-indigo-100 dark:bg-indigo-900 border-indigo-400'
+                            : isWeekend
+                            ? 'bg-purple-50 dark:bg-purple-950 border-purple-200'
+                            : 'bg-green-50 dark:bg-green-950 border-green-200'
+                        }`}
+                        data-testid={`day-block-${dayData.day.toLowerCase()}`}
+                      >
+                        <div className="font-semibold text-sm mb-1">{dayData.day}</div>
+                        <div className="text-2xl font-bold mb-1">{dayData.count}</div>
+                        <div className="text-xs text-muted-foreground">{dayData.percentage}% of total</div>
+                        <div className="w-full bg-muted rounded-full h-2 mt-2">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              isPeakDay ? 'bg-indigo-500' : isWeekend ? 'bg-purple-400' : 'bg-green-400'
+                            }`}
+                            style={{ width: `${Math.max(dayData.percentage, 5)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Peak Hours Insights */}
+              <div className="bg-yellow-50 dark:bg-yellow-950 rounded-lg p-4">
+                <h4 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">Peak Hours Insights</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-yellow-700 dark:text-yellow-300">
+                  {(() => {
+                    const businessHoursAppointments = peakHoursData.hourlyDistribution
+                      .filter((h: any) => h.hour >= 8 && h.hour <= 17)
+                      .reduce((sum: number, h: any) => sum + h.count, 0);
+                    
+                    const totalAppointments = peakHoursData.hourlyDistribution
+                      .reduce((sum: number, h: any) => sum + h.count, 0);
+                    
+                    const businessHoursPercentage = totalAppointments > 0 
+                      ? Math.round((businessHoursAppointments / totalAppointments) * 100) : 0;
+
+                    const weekdayAppointments = peakHoursData.dailyDistribution
+                      .filter((d: any) => d.dayNumber > 0 && d.dayNumber < 6)
+                      .reduce((sum: number, d: any) => sum + d.count, 0);
+                    
+                    const weekdayPercentage = totalAppointments > 0 
+                      ? Math.round((weekdayAppointments / totalAppointments) * 100) : 0;
+                    
+                    return (
+                      <>
+                        <div>
+                          <p><strong>Business Hours Activity:</strong> {businessHoursPercentage}% (8 AM - 5 PM)</p>
+                          <p><strong>Most Active Time:</strong> {peakHoursData.peakHour.timeLabel}</p>
+                        </div>
+                        <div>
+                          <p><strong>Weekday Activity:</strong> {weekdayPercentage}% (Mon-Fri)</p>
+                          <p><strong>Most Active Day:</strong> {peakHoursData.peakDay.day}</p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p>Loading peak hours analysis...</p>
             </div>
           )}
         </CardContent>
