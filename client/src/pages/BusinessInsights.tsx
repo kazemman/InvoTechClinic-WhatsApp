@@ -126,7 +126,7 @@ export default function BusinessInsights() {
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="text-green-600 w-6 h-6" />
+                <span className="text-green-600 font-bold text-xl">R</span>
               </div>
             </div>
           </CardContent>
@@ -389,7 +389,7 @@ export default function BusinessInsights() {
 
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <DollarSign className="w-8 h-8 text-green-600" />
+                <span className="text-green-600 font-bold text-2xl">R</span>
               </div>
               <h3 className="font-semibold text-lg" data-testid="text-efficiency-metric">
                 R{performanceMetrics.avgRevenuePerVisit}
