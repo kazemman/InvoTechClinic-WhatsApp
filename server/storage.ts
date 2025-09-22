@@ -890,7 +890,7 @@ export class DatabaseStorage implements IStorage {
     })
       .from(appointments)
       .where(and(
-        eq(appointments.status, 'completed'),
+        sql`${appointments.status} IN ('completed', 'scheduled')`,
         gte(appointments.appointmentDate, threeMonthsAgo)
       ));
 
