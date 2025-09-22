@@ -147,6 +147,31 @@ export default function Appointments() {
   };
 
   const onSubmit = (data: InsertAppointment) => {
+    // Debug logging
+    console.log('🔍 Form submission data:', data);
+    console.log('🔍 Current form values:', form.getValues());
+    
+    // Check if required fields are filled
+    if (!data.doctorId) {
+      console.error('❌ Missing doctorId in form data');
+      toast({
+        title: 'Missing Doctor',
+        description: 'Please select a doctor before booking the appointment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!data.appointmentType) {
+      console.error('❌ Missing appointmentType in form data');
+      toast({
+        title: 'Missing Appointment Type',
+        description: 'Please select an appointment type before booking.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     createAppointmentMutation.mutate(data);
   };
 
