@@ -324,6 +324,7 @@ export const updateMedicalAidClaimSchema = createInsertSchema(medicalAidClaims).
   notes: true,
   submittedAt: true,
   approvedAt: true,
+  claimAmount: true,
 });
 
 // Types
