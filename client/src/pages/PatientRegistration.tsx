@@ -49,6 +49,7 @@ export default function PatientRegistration() {
       address: '',
       medicalAidScheme: '',
       medicalAidNumber: '',
+      allergies: '',
     },
   });
 
@@ -447,6 +448,20 @@ export default function PatientRegistration() {
                     <FormLabel>Address</FormLabel>
                     <FormControl>
                       <Textarea {...field} value={field.value || ''} data-testid="input-address" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="allergies"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Allergies</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} value={field.value || ''} placeholder="List any known allergies or medications to avoid..." data-testid="input-allergies" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
