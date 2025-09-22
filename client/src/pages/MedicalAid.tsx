@@ -83,6 +83,11 @@ export default function MedicalAid() {
     if (updateData.approvedAt) {
       updatePayload.approvedAt = new Date(updateData.approvedAt).toISOString();
     }
+    
+    // Include claim amount if it has a value
+    if (updateData.claimAmount && updateData.claimAmount !== '') {
+      updatePayload.claimAmount = parseFloat(updateData.claimAmount).toString();
+    }
 
     updateClaimMutation.mutate({ id: editingClaim.id, ...updatePayload });
   };

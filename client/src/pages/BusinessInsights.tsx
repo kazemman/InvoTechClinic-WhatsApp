@@ -47,10 +47,16 @@ export default function BusinessInsights() {
     },
   });
 
-  // Calculate approved medical aid claim revenue
+  // Calculate approved medical aid claim revenue within date range
   const approvedClaimsRevenue = medicalAidClaims ? 
     medicalAidClaims
-      .filter((claim: any) => claim.status === 'approved' && claim.claimAmount)
+      .filter((claim: any) => {
+        if (claim.status !== 'approved' || !claim.claimAmount) return false;
+        if (!claim.approvedAt) return false;
+        
+        const approvedDate = new Date(claim.approvedAt).toISOString().split('T')[0];
+        return approvedDate >= dateRange.start && approvedDate <= dateRange.end;
+      })
       .reduce((sum: number, claim: any) => sum + parseFloat(claim.claimAmount || 0), 0) : 0;
 
   // Calculate revenue statistics
