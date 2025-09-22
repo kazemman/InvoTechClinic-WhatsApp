@@ -86,9 +86,11 @@ export default function Appointments() {
         title: 'Appointment Scheduled',
         description: 'The appointment has been successfully scheduled.',
       });
+      // Preserve doctor selection for convenience, but reset other fields
+      const currentDoctorId = form.getValues('doctorId');
       form.reset({
         patientId: '',
-        doctorId: '',
+        doctorId: currentDoctorId, // Keep the same doctor selected
         appointmentDate: getNextAvailable30MinuteSlot(),
         appointmentType: '',
         notes: '',
@@ -283,7 +285,7 @@ export default function Appointments() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Doctor *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger data-testid="select-doctor">
                             <SelectValue placeholder="Select doctor" />
