@@ -40,6 +40,14 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
+      <Route path="/patient-registration">
+        <ProtectedRoute requiredRoles={['staff', 'admin']}>
+          <Layout>
+            <PatientRegistration />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
       <Route path="/appointments">
         <ProtectedRoute requiredRoles={['staff', 'admin', 'doctor']}>
           <Layout>
