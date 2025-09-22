@@ -1029,6 +1029,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Monthly comparison stats
+  app.get('/api/dashboard/monthly-stats', authenticateToken, async (req, res) => {
+    try {
+      const monthsBack = req.query.months ? parseInt(req.query.months as string) : 12;
+      const stats = await storage.getMonthlyStats(monthsBack);
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch monthly stats:', error);
+      res.status(500).json({ message: 'Failed to fetch monthly stats' });
+    }
+  });
+
   // Activity logs
   app.get('/api/activity-logs', authenticateToken, requireRole(['admin']), async (req, res) => {
     try {
