@@ -146,6 +146,7 @@ export default function PatientRegistration() {
       address: patient.address || '',
       medicalAidScheme: patient.medicalAidScheme || '',
       medicalAidNumber: patient.medicalAidNumber || '',
+      allergies: patient.allergies || '',
     });
     
     // Set preview URL if patient has a photo
@@ -171,6 +172,7 @@ export default function PatientRegistration() {
       address: '',
       medicalAidScheme: '',
       medicalAidNumber: '',
+      allergies: '',
     });
     setSelectedFile(null);
     setPreviewUrl(null);
