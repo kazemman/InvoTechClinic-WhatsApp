@@ -152,6 +152,16 @@ export default function Appointments() {
     console.log('🔍 Current form values:', form.getValues());
     
     // Check if required fields are filled
+    if (!data.patientId) {
+      console.error('❌ Missing patientId in form data');
+      toast({
+        title: 'Missing Patient',
+        description: 'Please select a patient before booking the appointment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     if (!data.doctorId) {
       console.error('❌ Missing doctorId in form data');
       toast({
