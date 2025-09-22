@@ -39,14 +39,29 @@ export default function BusinessInsights() {
     },
   });
 
+  const { data: medicalAidClaims } = useQuery({
+    queryKey: ['/api/medical-aid-claims'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/medical-aid-claims');
+      return res.json();
+    },
+  });
+
+  // Calculate approved medical aid claim revenue
+  const approvedClaimsRevenue = medicalAidClaims ? 
+    medicalAidClaims
+      .filter((claim: any) => claim.status === 'approved' && claim.claimAmount)
+      .reduce((sum: number, claim: any) => sum + parseFloat(claim.claimAmount || 0), 0) : 0;
+
   // Calculate revenue statistics
   const revenueStats = revenueData ? {
-    total: revenueData.reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0),
+    total: revenueData.reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) + approvedClaimsRevenue,
     cash: revenueData.filter((p: any) => p.paymentMethod === 'cash').reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0),
     medicalAid: revenueData.filter((p: any) => p.paymentMethod === 'medical_aid').reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0),
     both: revenueData.filter((p: any) => p.paymentMethod === 'both').reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0),
+    approvedClaims: approvedClaimsRevenue,
     count: revenueData.length
-  } : { total: 0, cash: 0, medicalAid: 0, both: 0, count: 0 };
+  } : { total: approvedClaimsRevenue, cash: 0, medicalAid: 0, both: 0, approvedClaims: approvedClaimsRevenue, count: 0 };
 
   // Calculate appointment statistics
   const appointmentData = appointmentStats ? {
@@ -225,6 +240,19 @@ export default function BusinessInsights() {
                 </div>
               </div>
 
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 bg-emerald-500 rounded"></div>
+                  <span className="font-medium">Approved Medical Aid Claims</span>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold" data-testid="text-approved-claims-revenue">R{revenueStats.approvedClaims.toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {revenueStats.total > 0 ? Math.round((revenueStats.approvedClaims / revenueStats.total) * 100) : 0}%
+                  </p>
+                </div>
+              </div>
+
               {/* Revenue Progress Bar */}
               <div className="mt-6">
                 <div className="flex justify-between text-sm mb-2">
@@ -243,6 +271,10 @@ export default function BusinessInsights() {
                   <div 
                     className="bg-purple-500" 
                     style={{ width: `${revenueStats.total > 0 ? (revenueStats.both / revenueStats.total) * 100 : 0}%` }}
+                  ></div>
+                  <div 
+                    className="bg-emerald-500" 
+                    style={{ width: `${revenueStats.total > 0 ? (revenueStats.approvedClaims / revenueStats.total) * 100 : 0}%` }}
                   ></div>
                 </div>
               </div>
