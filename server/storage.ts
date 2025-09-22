@@ -7,7 +7,7 @@ import {
   type MedicalAttachment, type InsertMedicalAttachment, type MedicalAidClaim, type InsertMedicalAidClaim
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, isNotNull } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -559,6 +559,84 @@ export class DatabaseStorage implements IStorage {
       queueCount: queueResult[0]?.count || 0,
       todayRevenue: revenueResult[0]?.total || 0,
       newPatients: newPatientsResult[0]?.count || 0,
+    };
+  }
+
+  // Monthly comparison stats
+  async getMonthlyStats(monthsBack: number = 12): Promise<{
+    monthlyData: Array<{
+      month: string;
+      year: number;
+      revenue: number;
+      appointments: number;
+      patients: number;
+      completionRate: number;
+    }>;
+  }> {
+    const monthlyData = [];
+    const currentDate = new Date();
+
+    for (let i = 0; i < monthsBack; i++) {
+      const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const endOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      // Monthly revenue from payments
+      const revenueResult = await db.select({ total: sql<number>`COALESCE(SUM(${payments.amount}), 0)` })
+        .from(payments)
+        .where(and(
+          gte(payments.paymentDate, startOfMonth),
+          lte(payments.paymentDate, endOfMonth)
+        ));
+
+      // Monthly appointments
+      const appointmentsResult = await db.select({ 
+        total: sql<number>`COUNT(*)`,
+        completed: sql<number>`SUM(CASE WHEN ${appointments.status} = 'completed' THEN 1 ELSE 0 END)`
+      })
+        .from(appointments)
+        .where(and(
+          gte(appointments.appointmentDate, startOfMonth),
+          lte(appointments.appointmentDate, endOfMonth)
+        ));
+
+      // Monthly new patients
+      const patientsResult = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(patients)
+        .where(and(
+          gte(patients.createdAt, startOfMonth),
+          lte(patients.createdAt, endOfMonth)
+        ));
+
+      // Get approved medical aid claims for this month
+      const approvedClaimsResult = await db.select({ 
+        total: sql<number>`COALESCE(SUM(CAST(${medicalAidClaims.claimAmount} AS DECIMAL)), 0)`
+      })
+        .from(medicalAidClaims)
+        .where(and(
+          eq(medicalAidClaims.status, 'approved'),
+          isNotNull(medicalAidClaims.claimAmount),
+          gte(medicalAidClaims.approvedAt, startOfMonth),
+          lte(medicalAidClaims.approvedAt, endOfMonth)
+        ));
+
+      const totalRevenue = (revenueResult[0]?.total || 0) + (approvedClaimsResult[0]?.total || 0);
+      const totalAppointments = appointmentsResult[0]?.total || 0;
+      const completedAppointments = appointmentsResult[0]?.completed || 0;
+      const completionRate = totalAppointments > 0 ? Math.round((completedAppointments / totalAppointments) * 100) : 0;
+
+      monthlyData.push({
+        month: targetDate.toLocaleDateString('en-US', { month: 'long' }),
+        year: targetDate.getFullYear(),
+        revenue: totalRevenue,
+        appointments: totalAppointments,
+        patients: patientsResult[0]?.count || 0,
+        completionRate: completionRate
+      });
+    }
+
+    return {
+      monthlyData: monthlyData.reverse() // Reverse to show oldest to newest
     };
   }
 }
