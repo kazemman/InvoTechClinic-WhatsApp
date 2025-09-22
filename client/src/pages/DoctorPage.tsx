@@ -471,6 +471,10 @@ export default function DoctorPage() {
                     </div>
                   </div>
                   
+                  <div className="border-t pt-3">
+                    <p className="text-sm"><strong>Allergies:</strong> {selectedPatient.allergies || 'None recorded'}</p>
+                  </div>
+                  
                   {selectedPatient.medicalAidScheme && (
                     <div className="border-t pt-3">
                       <p className="text-sm"><strong>Medical Aid:</strong> {selectedPatient.medicalAidScheme}</p>
