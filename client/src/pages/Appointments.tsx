@@ -310,7 +310,13 @@ export default function Appointments() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Doctor *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select 
+                        onValueChange={(value) => {
+                          console.log('🔍 Doctor selected:', value);
+                          field.onChange(value);
+                        }} 
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger data-testid="select-doctor">
                             <SelectValue placeholder="Select doctor" />
@@ -366,7 +372,13 @@ export default function Appointments() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Appointment Type *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select 
+                        onValueChange={(value) => {
+                          console.log('🔍 Appointment type selected:', value);
+                          field.onChange(value);
+                        }} 
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger data-testid="select-appointment-type">
                             <SelectValue placeholder="Select type" />
