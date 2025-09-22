@@ -115,6 +115,30 @@ export interface IStorage {
       ninetyDay: number;
     };
   }>;
+
+  // Peak hours analysis
+  getPeakHoursAnalysis(): Promise<{
+    hourlyDistribution: Array<{
+      hour: number;
+      count: number;
+      percentage: number;
+    }>;
+    dailyDistribution: Array<{
+      day: string;
+      dayNumber: number;
+      count: number;
+      percentage: number;
+    }>;
+    peakHour: {
+      hour: number;
+      count: number;
+      timeLabel: string;
+    };
+    peakDay: {
+      day: string;
+      count: number;
+    };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -831,6 +855,120 @@ export class DatabaseStorage implements IStorage {
         sixtyDay: sixtyDayRate,
         ninetyDay: ninetyDayRate
       }
+    };
+  }
+
+  // Peak hours analysis
+  async getPeakHoursAnalysis(): Promise<{
+    hourlyDistribution: Array<{
+      hour: number;
+      count: number;
+      percentage: number;
+    }>;
+    dailyDistribution: Array<{
+      day: string;
+      dayNumber: number;
+      count: number;
+      percentage: number;
+    }>;
+    peakHour: {
+      hour: number;
+      count: number;
+      timeLabel: string;
+    };
+    peakDay: {
+      day: string;
+      count: number;
+    };
+  }> {
+    // Get all completed appointments in the last 3 months for analysis
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+    const appointments = await db.select({
+      appointmentDate: appointments.appointmentDate
+    })
+      .from(appointments)
+      .where(and(
+        eq(appointments.status, 'completed'),
+        gte(appointments.appointmentDate, threeMonthsAgo)
+      ));
+
+    // Initialize hourly distribution (0-23 hours)
+    const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      count: 0,
+      percentage: 0
+    }));
+
+    // Initialize daily distribution (0=Sunday, 1=Monday, etc.)
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dailyData = Array.from({ length: 7 }, (_, day) => ({
+      day: dayNames[day],
+      dayNumber: day,
+      count: 0,
+      percentage: 0
+    }));
+
+    const totalAppointments = appointments.length;
+
+    // Process each appointment
+    appointments.forEach(apt => {
+      const date = new Date(apt.appointmentDate);
+      const hour = date.getHours();
+      const dayOfWeek = date.getDay();
+
+      hourlyData[hour].count++;
+      dailyData[dayOfWeek].count++;
+    });
+
+    // Calculate percentages
+    hourlyData.forEach(hourData => {
+      hourData.percentage = totalAppointments > 0 
+        ? Math.round((hourData.count / totalAppointments) * 100) 
+        : 0;
+    });
+
+    dailyData.forEach(dayData => {
+      dayData.percentage = totalAppointments > 0 
+        ? Math.round((dayData.count / totalAppointments) * 100) 
+        : 0;
+    });
+
+    // Find peak hour
+    const peakHourData = hourlyData.reduce((max, current) => 
+      current.count > max.count ? current : max
+    );
+
+    // Format peak hour time label
+    const formatHour = (hour: number): string => {
+      if (hour === 0) return '12:00 AM';
+      if (hour < 12) return `${hour}:00 AM`;
+      if (hour === 12) return '12:00 PM';
+      return `${hour - 12}:00 PM`;
+    };
+
+    const peakHour = {
+      hour: peakHourData.hour,
+      count: peakHourData.count,
+      timeLabel: formatHour(peakHourData.hour)
+    };
+
+    // Find peak day
+    const peakDayData = dailyData.reduce((max, current) => 
+      current.count > max.count ? current : max
+    );
+
+    const peakDay = {
+      day: peakDayData.day,
+      count: peakDayData.count
+    };
+
+    return {
+      hourlyDistribution: hourlyData,
+      dailyDistribution: dailyData,
+      peakHour,
+      peakDay
     };
   }
 }

@@ -1052,6 +1052,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Peak hours analysis
+  app.get('/api/dashboard/peak-hours', authenticateToken, async (req, res) => {
+    try {
+      const stats = await storage.getPeakHoursAnalysis();
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch peak hours analysis:', error);
+      res.status(500).json({ message: 'Failed to fetch peak hours analysis' });
+    }
+  });
+
   // Activity logs
   app.get('/api/activity-logs', authenticateToken, requireRole(['admin']), async (req, res) => {
     try {
