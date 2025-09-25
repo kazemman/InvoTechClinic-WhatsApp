@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -75,6 +76,7 @@ export default function CustomerRelations() {
   const [customMessage, setCustomMessage] = useState<string>('');
   const [birthdayCustomMessage, setBirthdayCustomMessage] = useState<string>('');
   const [selectedPatients, setSelectedPatients] = useState<string[]>([]);
+  const [selectedBirthdayPatients, setSelectedBirthdayPatients] = useState<string[]>([]);
 
   // Get today's birthday patients
   const { data: birthdayPatients, isLoading: loadingBirthdays } = useQuery({
@@ -214,6 +216,36 @@ export default function CustomerRelations() {
     return sentWishes?.some((wish: BirthdayWish) => wish.patientId === patientId);
   };
 
+  const handleBirthdayPatientSelection = (patientId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedBirthdayPatients(prev => [...prev, patientId]);
+    } else {
+      setSelectedBirthdayPatients(prev => prev.filter(id => id !== patientId));
+    }
+  };
+
+  const sendBirthdayWishToSelected = () => {
+    if (selectedBirthdayPatients.length === 0) {
+      toast({
+        title: "No patients selected",
+        description: "Please select at least one patient to send birthday wishes to.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    selectedBirthdayPatients.forEach(patientId => {
+      if (!isWishSent(patientId)) {
+        sendBirthdayWishMutation.mutate({ 
+          patientId, 
+          customMessage: birthdayCustomMessage 
+        });
+      }
+    });
+    
+    setSelectedBirthdayPatients([]);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -259,49 +291,75 @@ export default function CustomerRelations() {
                   <span className="ml-2">Loading birthdays...</span>
                 </div>
               ) : birthdayPatients?.length > 0 ? (
-                <div className="space-y-3">
-                  {birthdayPatients.map((patient: Patient) => (
-                    <div key={patient.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Calendar className="h-5 w-5 text-blue-500" />
-                        <div>
-                          <p className="font-medium" data-testid={`text-birthday-patient-${patient.id}`}>
-                            {patient.firstName} {patient.lastName}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatDate(patient.dateOfBirth)} • {patient.phone}
-                          </p>
+                <div className="space-y-4">
+                  {/* Patient Selection List */}
+                  <div className="space-y-3">
+                    {birthdayPatients.map((patient: Patient) => (
+                      <div key={patient.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            id={`birthday-patient-${patient.id}`}
+                            checked={selectedBirthdayPatients.includes(patient.id)}
+                            onCheckedChange={(checked: boolean) => handleBirthdayPatientSelection(patient.id, checked)}
+                            disabled={isWishSent(patient.id)}
+                            data-testid={`checkbox-birthday-patient-${patient.id}`}
+                          />
+                          <Calendar className="h-5 w-5 text-blue-500" />
+                          <div>
+                            <p className="font-medium" data-testid={`text-birthday-patient-${patient.id}`}>
+                              {patient.firstName} {patient.lastName}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDate(patient.dateOfBirth)} • {patient.phone}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isWishSent(patient.id) ? (
+                            <Badge variant="secondary" data-testid={`badge-sent-${patient.id}`}>
+                              <MessageSquare className="h-3 w-3 mr-1" />
+                              Sent
+                            </Badge>
+                          ) : (
+                            <Button 
+                              size="sm"
+                              variant="outline"
+                              onClick={() => sendBirthdayWishMutation.mutate({ 
+                                patientId: patient.id, 
+                                customMessage: birthdayCustomMessage 
+                              })}
+                              disabled={sendBirthdayWishMutation.isPending}
+                              data-testid={`button-send-birthday-${patient.id}`}
+                            >
+                              {sendBirthdayWishMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Send className="h-4 w-4 mr-1" />
+                                  Send Now
+                                </>
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {isWishSent(patient.id) ? (
-                          <Badge variant="secondary" data-testid={`badge-sent-${patient.id}`}>
-                            <MessageSquare className="h-3 w-3 mr-1" />
-                            Sent
-                          </Badge>
-                        ) : (
-                          <Button 
-                            size="sm"
-                            onClick={() => sendBirthdayWishMutation.mutate({ 
-                              patientId: patient.id, 
-                              customMessage: birthdayCustomMessage 
-                            })}
-                            disabled={sendBirthdayWishMutation.isPending}
-                            data-testid={`button-send-birthday-${patient.id}`}
-                          >
-                            {sendBirthdayWishMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-1" />
-                                Send Wish
-                              </>
-                            )}
-                          </Button>
-                        )}
-                      </div>
+                    ))}
+                  </div>
+
+                  {/* Send to Selected Button */}
+                  <div className="flex justify-between items-center pt-3 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      {selectedBirthdayPatients.length} patient{selectedBirthdayPatients.length !== 1 ? 's' : ''} selected
                     </div>
-                  ))}
+                    <Button 
+                      onClick={sendBirthdayWishToSelected}
+                      disabled={selectedBirthdayPatients.length === 0 || sendBirthdayWishMutation.isPending}
+                      data-testid="button-send-to-selected-birthday"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Send to Selected ({selectedBirthdayPatients.length})
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8">
