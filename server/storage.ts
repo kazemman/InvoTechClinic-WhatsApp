@@ -1,10 +1,11 @@
 import { 
-  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims,
+  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes,
   type User, type InsertUser, type Patient, type InsertPatient, 
   type Appointment, type InsertAppointment, type CheckIn, type InsertCheckIn,
   type Queue, type InsertQueue, type Consultation, type InsertConsultation,
   type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog,
-  type MedicalAttachment, type InsertMedicalAttachment, type MedicalAidClaim, type InsertMedicalAidClaim
+  type MedicalAttachment, type InsertMedicalAttachment, type MedicalAidClaim, type InsertMedicalAidClaim,
+  type BirthdayWish, type InsertBirthdayWish
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, isNotNull } from "drizzle-orm";
@@ -139,6 +140,11 @@ export interface IStorage {
       count: number;
     };
   }>;
+
+  // Birthday wishes methods
+  createBirthdayWish(wish: InsertBirthdayWish): Promise<BirthdayWish>;
+  getBirthdayWishesByDate(date: Date): Promise<BirthdayWish[]>;
+  getTodaysBirthdayPatients(): Promise<Patient[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -970,6 +976,42 @@ export class DatabaseStorage implements IStorage {
       peakHour,
       peakDay
     };
+  }
+
+  // Birthday wishes methods
+  async createBirthdayWish(wish: InsertBirthdayWish): Promise<BirthdayWish> {
+    const [result] = await db.insert(birthdayWishes).values(wish).returning();
+    return result;
+  }
+
+  async getBirthdayWishesByDate(date: Date): Promise<BirthdayWish[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return await db
+      .select()
+      .from(birthdayWishes)
+      .where(and(
+        gte(birthdayWishes.sentAt, startOfDay),
+        lte(birthdayWishes.sentAt, endOfDay)
+      ))
+      .orderBy(desc(birthdayWishes.sentAt));
+  }
+
+  async getTodaysBirthdayPatients(): Promise<Patient[]> {
+    const today = new Date();
+    const todayMonth = today.getMonth() + 1; // getMonth() returns 0-11, we need 1-12
+    const todayDay = today.getDate();
+
+    return await db
+      .select()
+      .from(patients)
+      .where(
+        sql`EXTRACT(MONTH FROM ${patients.dateOfBirth}) = ${todayMonth} AND EXTRACT(DAY FROM ${patients.dateOfBirth}) = ${todayDay}`
+      );
   }
 }
 

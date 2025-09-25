@@ -142,12 +142,27 @@ export const medicalAidClaims = pgTable("medical_aid_claims", {
   };
 });
 
+export const birthdayWishes = pgTable("birthday_wishes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  patientId: varchar("patient_id").notNull().references(() => patients.id),
+  sentBy: varchar("sent_by").notNull().references(() => users.id),
+  message: text("message").notNull(),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  webhookResponse: text("webhook_response"),
+}, (table) => {
+  return {
+    // Index for performance when querying by patient and date
+    patientDateIdx: index("birthday_wishes_patient_date_idx").on(table.patientId, table.sentAt),
+  };
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   appointments: many(appointments),
   queue: many(queue),
   consultations: many(consultations),
   activityLogs: many(activityLogs),
+  birthdayWishes: many(birthdayWishes),
 }));
 
 export const patientsRelations = relations(patients, ({ many }) => ({
@@ -157,6 +172,7 @@ export const patientsRelations = relations(patients, ({ many }) => ({
   consultations: many(consultations),
   payments: many(payments),
   medicalAidClaims: many(medicalAidClaims),
+  birthdayWishes: many(birthdayWishes),
 }));
 
 export const appointmentsRelations = relations(appointments, ({ one, many }) => ({
@@ -238,6 +254,17 @@ export const medicalAidClaimsRelations = relations(medicalAidClaims, ({ one }) =
   checkIn: one(checkIns, {
     fields: [medicalAidClaims.checkInId],
     references: [checkIns.id],
+  }),
+}));
+
+export const birthdayWishesRelations = relations(birthdayWishes, ({ one }) => ({
+  patient: one(patients, {
+    fields: [birthdayWishes.patientId],
+    references: [patients.id],
+  }),
+  sentByUser: one(users, {
+    fields: [birthdayWishes.sentBy],
+    references: [users.id],
   }),
 }));
 
@@ -328,6 +355,11 @@ export const updateMedicalAidClaimSchema = createInsertSchema(medicalAidClaims).
   claimAmount: true,
 });
 
+export const insertBirthdayWishSchema = createInsertSchema(birthdayWishes).omit({
+  id: true,
+  sentAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -349,6 +381,8 @@ export type MedicalAttachment = typeof medicalAttachments.$inferSelect;
 export type InsertMedicalAttachment = z.infer<typeof insertMedicalAttachmentSchema>;
 export type MedicalAidClaim = typeof medicalAidClaims.$inferSelect;
 export type InsertMedicalAidClaim = z.infer<typeof insertMedicalAidClaimSchema>;
+export type BirthdayWish = typeof birthdayWishes.$inferSelect;
+export type InsertBirthdayWish = z.infer<typeof insertBirthdayWishSchema>;
 
 // Login schema
 export const loginSchema = z.object({

@@ -9,7 +9,8 @@ import {
   loginSchema, passwordResetSchema, insertUserSchema, insertPatientSchema, 
   insertAppointmentSchema, insertCheckInSchema, insertQueueSchema,
   insertConsultationSchema, insertPaymentSchema, insertActivityLogSchema,
-  insertMedicalAttachmentSchema, insertMedicalAidClaimSchema, updateMedicalAidClaimSchema
+  insertMedicalAttachmentSchema, insertMedicalAidClaimSchema, updateMedicalAidClaimSchema,
+  insertBirthdayWishSchema
 } from "@shared/schema";
 import { z } from "zod";
 import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, AuthenticatedRequest } from "./auth";
@@ -1131,6 +1132,225 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.status(400).json({ message: 'Failed to update medical aid claim' });
+    }
+  });
+
+  // Customer Relations routes
+  app.get('/api/patients/birthdays', authenticateToken, requireRole(['staff', 'admin']), async (req, res) => {
+    try {
+      const birthdayPatients = await storage.getTodaysBirthdayPatients();
+      res.json(birthdayPatients);
+    } catch (error) {
+      console.error('Failed to fetch birthday patients:', error);
+      res.status(500).json({ message: 'Failed to fetch birthday patients' });
+    }
+  });
+
+  app.get('/api/birthday-wishes', authenticateToken, requireRole(['staff', 'admin']), async (req, res) => {
+    try {
+      const today = new Date();
+      const birthdayWishes = await storage.getBirthdayWishesByDate(today);
+      res.json(birthdayWishes);
+    } catch (error) {
+      console.error('Failed to fetch birthday wishes:', error);
+      res.status(500).json({ message: 'Failed to fetch birthday wishes' });
+    }
+  });
+
+  app.post('/api/send-birthday-wish', authenticateToken, requireRole(['staff', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { patientId } = req.body;
+      
+      if (!patientId) {
+        return res.status(400).json({ message: 'Patient ID is required' });
+      }
+
+      // Get patient details
+      const patient = await storage.getPatient(patientId);
+      if (!patient) {
+        return res.status(404).json({ message: 'Patient not found' });
+      }
+
+      // Generate birthday message
+      const message = `Happy Birthday ${patient.firstName}! 🎉 Wishing you a wonderful year ahead filled with health and happiness. From all of us at the clinic! 🎂`;
+
+      // Send to N8N webhook
+      const webhookUrl = process.env.N8N_WEBHOOK_URL;
+      if (!webhookUrl) {
+        return res.status(500).json({ message: 'Webhook URL not configured' });
+      }
+
+      const webhookPayload = {
+        type: 'birthday_wish',
+        patient: {
+          id: patient.id,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          phone: patient.phone,
+          email: patient.email
+        },
+        message: message,
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(webhookPayload)
+      });
+
+      const webhookResponse = await response.text();
+
+      // Save birthday wish record
+      await storage.createBirthdayWish({
+        patientId: patient.id,
+        sentBy: req.user!.id,
+        message: message,
+        webhookResponse: webhookResponse
+      });
+
+      // Log activity
+      if (req.user) {
+        await storage.createActivityLog({
+          userId: req.user.id,
+          action: 'send_birthday_wish',
+          details: `Sent birthday wish to ${patient.firstName} ${patient.lastName}`
+        });
+      }
+
+      res.json({ 
+        message: message, 
+        success: true,
+        webhookResponse: response.ok 
+      });
+    } catch (error) {
+      console.error('Failed to send birthday wish:', error);
+      res.status(500).json({ message: 'Failed to send birthday wish' });
+    }
+  });
+
+  app.post('/api/send-health-advice', authenticateToken, requireRole(['staff', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { adviceId, customMessage, patientIds } = req.body;
+      
+      if (!patientIds || !Array.isArray(patientIds) || patientIds.length === 0) {
+        return res.status(400).json({ message: 'Patient IDs are required' });
+      }
+
+      if (!adviceId && !customMessage) {
+        return res.status(400).json({ message: 'Either advice template or custom message is required' });
+      }
+
+      const predefinedAdvice = [
+        {
+          id: '1',
+          title: 'Stay Hydrated',
+          content: 'Remember to drink at least 8 glasses of water daily. Proper hydration is essential for your overall health and well-being.'
+        },
+        {
+          id: '2', 
+          title: 'Regular Exercise',
+          content: 'Aim for at least 30 minutes of moderate exercise daily. Even a simple walk can make a significant difference to your health.'
+        },
+        {
+          id: '3',
+          title: 'Balanced Diet',
+          content: 'Include plenty of fruits, vegetables, and whole grains in your diet. A balanced diet provides essential nutrients for optimal health.'
+        },
+        {
+          id: '4',
+          title: 'Regular Check-ups',
+          content: 'Schedule regular medical check-ups to monitor your health and catch any potential issues early.'
+        },
+        {
+          id: '5',
+          title: 'Mental Health',
+          content: 'Take time for mental health. Practice stress management techniques like meditation, deep breathing, or talking to someone you trust.'
+        }
+      ];
+
+      let finalMessage = customMessage;
+      if (adviceId) {
+        const advice = predefinedAdvice.find(a => a.id === adviceId);
+        if (advice) {
+          finalMessage = `${advice.title}\n\n${advice.content}`;
+        }
+      }
+
+      if (!finalMessage) {
+        return res.status(400).json({ message: 'Unable to generate health advice message' });
+      }
+
+      // Get webhook URL
+      const webhookUrl = process.env.N8N_WEBHOOK_URL;
+      if (!webhookUrl) {
+        return res.status(500).json({ message: 'Webhook URL not configured' });
+      }
+
+      let sentCount = 0;
+      const results = [];
+
+      // Send to each patient
+      for (const patientId of patientIds) {
+        try {
+          const patient = await storage.getPatient(patientId);
+          if (!patient) {
+            results.push({ patientId, success: false, error: 'Patient not found' });
+            continue;
+          }
+
+          const webhookPayload = {
+            type: 'health_advice',
+            patient: {
+              id: patient.id,
+              firstName: patient.firstName,
+              lastName: patient.lastName,
+              phone: patient.phone,
+              email: patient.email
+            },
+            message: finalMessage,
+            timestamp: new Date().toISOString()
+          };
+
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(webhookPayload)
+          });
+
+          if (response.ok) {
+            sentCount++;
+            results.push({ patientId, success: true });
+          } else {
+            results.push({ patientId, success: false, error: 'Webhook failed' });
+          }
+        } catch (error) {
+          results.push({ patientId, success: false, error: 'Send failed' });
+        }
+      }
+
+      // Log activity
+      if (req.user) {
+        await storage.createActivityLog({
+          userId: req.user.id,
+          action: 'send_health_advice',
+          details: `Sent health advice to ${sentCount} patients`
+        });
+      }
+
+      res.json({ 
+        sentCount,
+        totalRequested: patientIds.length,
+        results,
+        message: finalMessage
+      });
+    } catch (error) {
+      console.error('Failed to send health advice:', error);
+      res.status(500).json({ message: 'Failed to send health advice' });
     }
   });
 
