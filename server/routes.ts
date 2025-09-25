@@ -1203,15 +1203,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const webhookPayload = {
-        type: 'birthday_wish',
-        patient: {
-          id: patient.id,
-          firstName: patient.firstName,
-          lastName: patient.lastName,
-          phone: patient.phone,
-          email: patient.email
-        },
-        message: message,
+        patients: [
+          {
+            id: parseInt(patient.id) || patient.id,
+            firstName: patient.firstName,
+            lastName: patient.lastName,
+            phoneNumber: patient.phone,
+            birthdayMessage: message
+          }
+        ],
+        requestId: `birthday_req_${new Date().toISOString().split('T')[0].replace(/-/g, '')}`,
         timestamp: new Date().toISOString()
       };
 
@@ -1355,15 +1356,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           const webhookPayload = {
-            type: 'health_advice',
-            patient: {
-              id: patient.id,
-              firstName: patient.firstName,
-              lastName: patient.lastName,
-              phone: patient.phone,
-              email: patient.email
-            },
-            message: finalMessage,
+            patients: [
+              {
+                id: parseInt(patient.id) || patient.id,
+                firstName: patient.firstName,
+                lastName: patient.lastName,
+                phoneNumber: patient.phone,
+                message: finalMessage
+              }
+            ],
+            requestId: `health_advice_req_${new Date().toISOString().split('T')[0].replace(/-/g, '')}`,
             timestamp: new Date().toISOString()
           };
 
