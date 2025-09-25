@@ -1161,7 +1161,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Validate request body with Zod
       const bodySchema = z.object({
-        patientId: z.string().min(1, 'Patient ID is required')
+        patientId: z.string().min(1, 'Patient ID is required'),
+        customMessage: z.string().optional()
       });
       
       const validationResult = bodySchema.safeParse(req.body);
@@ -1172,7 +1173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { patientId } = validationResult.data;
+      const { patientId, customMessage } = validationResult.data;
 
       // Get patient details
       const patient = await storage.getPatient(patientId);
@@ -1192,7 +1193,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate birthday message
-      const message = `Happy Birthday ${patient.firstName}! 🎉 Wishing you a wonderful year ahead filled with health and happiness. From all of us at the clinic! 🎂`;
+      const message = customMessage?.trim() || 
+        `Happy Birthday ${patient.firstName}! 🎉 Wishing you a wonderful year ahead filled with health and happiness. From all of us at the clinic! 🎂`;
 
       // Send to N8N webhook
       const webhookUrl = process.env.N8N_WEBHOOK_URL;

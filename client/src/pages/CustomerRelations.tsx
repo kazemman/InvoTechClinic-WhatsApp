@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -72,6 +73,7 @@ export default function CustomerRelations() {
   const { toast } = useToast();
   const [selectedAdvice, setSelectedAdvice] = useState<string>('');
   const [customMessage, setCustomMessage] = useState<string>('');
+  const [birthdayCustomMessage, setBirthdayCustomMessage] = useState<string>('');
   const [selectedPatients, setSelectedPatients] = useState<string[]>([]);
 
   // Get today's birthday patients
@@ -104,9 +106,10 @@ export default function CustomerRelations() {
 
   // Send birthday wish mutation
   const sendBirthdayWishMutation = useMutation({
-    mutationFn: async (patientId: string) => {
+    mutationFn: async ({ patientId, customMessage }: { patientId: string; customMessage?: string }) => {
       const response = await apiRequest('POST', '/api/send-birthday-wish', {
-        patientId
+        patientId,
+        customMessage: customMessage?.trim() || undefined
       });
       return response.json();
     },
@@ -234,6 +237,22 @@ export default function CustomerRelations() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {/* Custom Message Input */}
+              <div className="space-y-2">
+                <Label htmlFor="birthday-message">Custom Birthday Message (Optional)</Label>
+                <Textarea
+                  id="birthday-message"
+                  placeholder="Enter a custom birthday message, or leave blank to use the default message..."
+                  value={birthdayCustomMessage}
+                  onChange={(e) => setBirthdayCustomMessage(e.target.value)}
+                  rows={3}
+                  data-testid="textarea-birthday-custom-message"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to use default: "Happy Birthday [Name]! 🎉 Wishing you a wonderful year ahead..."
+                </p>
+              </div>
+              
               {loadingBirthdays ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin" />
@@ -263,7 +282,10 @@ export default function CustomerRelations() {
                         ) : (
                           <Button 
                             size="sm"
-                            onClick={() => sendBirthdayWishMutation.mutate(patient.id)}
+                            onClick={() => sendBirthdayWishMutation.mutate({ 
+                              patientId: patient.id, 
+                              customMessage: birthdayCustomMessage 
+                            })}
                             disabled={sendBirthdayWishMutation.isPending}
                             data-testid={`button-send-birthday-${patient.id}`}
                           >
