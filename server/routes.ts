@@ -1159,16 +1159,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/send-birthday-wish', authenticateToken, requireRole(['staff', 'admin']), async (req: AuthenticatedRequest, res) => {
     try {
-      const { patientId } = req.body;
+      // Validate request body with Zod
+      const bodySchema = z.object({
+        patientId: z.string().min(1, 'Patient ID is required')
+      });
       
-      if (!patientId) {
-        return res.status(400).json({ message: 'Patient ID is required' });
+      const validationResult = bodySchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: 'Invalid request data',
+          errors: validationResult.error.errors 
+        });
       }
+
+      const { patientId } = validationResult.data;
 
       // Get patient details
       const patient = await storage.getPatient(patientId);
       if (!patient) {
         return res.status(404).json({ message: 'Patient not found' });
+      }
+
+      // Check for idempotency - prevent duplicate birthday wishes for same patient on same day
+      const today = new Date();
+      const existingWishes = await storage.getBirthdayWishesByDate(today);
+      const alreadySent = existingWishes.some(wish => wish.patientId === patientId);
+      
+      if (alreadySent) {
+        return res.status(409).json({ 
+          message: 'Birthday wish already sent to this patient today' 
+        });
       }
 
       // Generate birthday message
@@ -1198,8 +1218,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(webhookPayload)
+        body: JSON.stringify(webhookPayload),
+        signal: AbortSignal.timeout(10000) // 10 second timeout
       });
+
+      if (!response.ok) {
+        console.error(`Webhook failed with status ${response.status}: ${response.statusText}`);
+        return res.status(502).json({ 
+          message: 'Failed to send message - webhook service unavailable' 
+        });
+      }
 
       const webhookResponse = await response.text();
 
@@ -1225,23 +1253,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         webhookResponse: response.ok 
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send birthday wish:', error);
+      
+      // Handle specific error types
+      if (error.name === 'AbortError') {
+        return res.status(504).json({ message: 'Request timeout - webhook service not responding' });
+      }
+      
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid request data',
+          errors: error.errors 
+        });
+      }
+      
       res.status(500).json({ message: 'Failed to send birthday wish' });
     }
   });
 
   app.post('/api/send-health-advice', authenticateToken, requireRole(['staff', 'admin']), async (req: AuthenticatedRequest, res) => {
     try {
-      const { adviceId, customMessage, patientIds } = req.body;
+      // Validate request body with Zod
+      const bodySchema = z.object({
+        adviceId: z.string().optional(),
+        customMessage: z.string().optional(),
+        patientIds: z.array(z.string().min(1)).min(1, 'At least one patient ID is required')
+      }).refine(
+        (data) => data.adviceId || data.customMessage,
+        { message: 'Either adviceId or customMessage must be provided' }
+      );
       
-      if (!patientIds || !Array.isArray(patientIds) || patientIds.length === 0) {
-        return res.status(400).json({ message: 'Patient IDs are required' });
+      const validationResult = bodySchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: 'Invalid request data',
+          errors: validationResult.error.errors 
+        });
       }
 
-      if (!adviceId && !customMessage) {
-        return res.status(400).json({ message: 'Either advice template or custom message is required' });
-      }
+      const { adviceId, customMessage, patientIds } = validationResult.data;
 
       const predefinedAdvice = [
         {
@@ -1319,17 +1370,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify(webhookPayload)
+            body: JSON.stringify(webhookPayload),
+            signal: AbortSignal.timeout(10000) // 10 second timeout
           });
 
           if (response.ok) {
             sentCount++;
             results.push({ patientId, success: true });
           } else {
-            results.push({ patientId, success: false, error: 'Webhook failed' });
+            console.error(`Webhook failed for patient ${patientId}: ${response.status} ${response.statusText}`);
+            results.push({ patientId, success: false, error: `Webhook failed: ${response.status}` });
           }
-        } catch (error) {
-          results.push({ patientId, success: false, error: 'Send failed' });
+        } catch (error: any) {
+          let errorMessage = 'Send failed';
+          if (error.name === 'AbortError') {
+            errorMessage = 'Timeout';
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+          results.push({ patientId, success: false, error: errorMessage });
         }
       }
 
@@ -1348,8 +1407,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         results,
         message: finalMessage
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send health advice:', error);
+      
+      // Handle specific error types
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid request data',
+          errors: error.errors 
+        });
+      }
+      
       res.status(500).json({ message: 'Failed to send health advice' });
     }
   });
