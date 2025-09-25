@@ -16,6 +16,7 @@ import BusinessInsights from "@/pages/BusinessInsights";
 import UserManagement from "@/pages/UserManagement";
 import SystemAdmin from "@/pages/SystemAdmin";
 import MedicalAid from "@/pages/MedicalAid";
+import CustomerRelations from "@/pages/CustomerRelations";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
 
@@ -68,6 +69,14 @@ function Router() {
         <ProtectedRoute requiredRoles={['staff', 'admin', 'doctor']}>
           <Layout>
             <QueueManagement />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/customer-relations">
+        <ProtectedRoute requiredRoles={['staff', 'admin']}>
+          <Layout>
+            <CustomerRelations />
           </Layout>
         </ProtectedRoute>
       </Route>
