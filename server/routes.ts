@@ -288,6 +288,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Customer Relations routes - defined before :id route to avoid conflicts
+  app.get('/api/patients/birthdays', authenticateToken, requireRole(['staff', 'admin']), async (req, res) => {
+    try {
+      const birthdayPatients = await storage.getTodaysBirthdayPatients();
+      res.json(birthdayPatients);
+    } catch (error) {
+      console.error('Failed to fetch birthday patients:', error);
+      res.status(500).json({ message: 'Failed to fetch birthday patients' });
+    }
+  });
+
   app.get('/api/patients/:id', authenticateToken, async (req, res) => {
     try {
       const { id } = req.params;
@@ -1136,15 +1147,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Customer Relations routes
-  app.get('/api/patients/birthdays', authenticateToken, requireRole(['staff', 'admin']), async (req, res) => {
-    try {
-      const birthdayPatients = await storage.getTodaysBirthdayPatients();
-      res.json(birthdayPatients);
-    } catch (error) {
-      console.error('Failed to fetch birthday patients:', error);
-      res.status(500).json({ message: 'Failed to fetch birthday patients' });
-    }
-  });
 
   app.get('/api/birthday-wishes', authenticateToken, requireRole(['staff', 'admin']), async (req, res) => {
     try {
