@@ -526,6 +526,132 @@ export default function Appointments() {
           </CardContent>
         </Card>
 
+        {/* Appointments List */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Appointments Schedule
+              </CardTitle>
+              <div className="flex items-center gap-3">
+                <div className="flex gap-2">
+                  <Button
+                    variant={isToday ? "default" : "outline"}
+                    size="sm"
+                    onClick={setToday}
+                    data-testid="button-today"
+                    className="flex items-center gap-1"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Today
+                  </Button>
+                  <Button
+                    variant={isTomorrow ? "default" : "outline"}
+                    size="sm"
+                    onClick={setTomorrow}
+                    data-testid="button-tomorrow"
+                    className="flex items-center gap-1"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Tomorrow
+                  </Button>
+                </div>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-auto"
+                  data-testid="input-date-filter"
+                />
+              </div>
+            </div>
+            <CardDescription className="flex items-center justify-between">
+              <span>Manage and track appointment status</span>
+              <span className="text-sm font-medium">
+                Viewing: {formatDate(selectedDate)}
+                {isToday && " (Today)"}
+                {isTomorrow && " (Tomorrow)"}
+              </span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {appointments && appointments.length > 0 ? (
+                appointments.map((appointment: any) => (
+                  <div key={appointment.id} className="border rounded-lg p-4 hover:bg-muted/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="text-center min-w-[60px]">
+                          <div className="text-lg font-bold text-foreground">
+                            {formatTime(appointment.appointmentDate)}
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          {/* Patient name prominently displayed */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <User className="w-5 h-5 text-primary" />
+                            <span className="text-lg font-semibold text-foreground" data-testid={`text-patient-${appointment.id}`}>
+                              {appointment.patient?.firstName} {appointment.patient?.lastName}
+                            </span>
+                          </div>
+                          {/* Appointment type prominently displayed */}
+                          <div className="text-base font-medium text-foreground mb-1">
+                            {appointment.appointmentType}
+                          </div>
+                          {/* Doctor name as secondary information */}
+                          <div className="text-sm text-muted-foreground">
+                            Dr. {appointment.doctor?.name}
+                          </div>
+                          {appointment.notes && (
+                            <div className="text-sm text-muted-foreground mt-2 italic">
+                              {appointment.notes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(appointment.status)}`}
+                          data-testid={`badge-status-${appointment.id}`}
+                        >
+                          {appointment.status.replace('_', ' ')}
+                        </Badge>
+                        <div className="flex gap-1">
+                          {appointment.status === 'scheduled' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
+                              data-testid={`button-confirm-${appointment.id}`}
+                            >
+                              Confirm
+                            </Button>
+                          )}
+                          {(appointment.status === 'confirmed' || appointment.status === 'scheduled') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
+                              data-testid={`button-cancel-${appointment.id}`}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground" data-testid="text-no-appointments">
+                  No appointments scheduled for {formatDate(selectedDate)}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Appointment Reminders Section */}
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -670,132 +796,6 @@ export default function Appointments() {
                   )}
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Appointments List */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Appointments Schedule
-              </CardTitle>
-              <div className="flex items-center gap-3">
-                <div className="flex gap-2">
-                  <Button
-                    variant={isToday ? "default" : "outline"}
-                    size="sm"
-                    onClick={setToday}
-                    data-testid="button-today"
-                    className="flex items-center gap-1"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    Today
-                  </Button>
-                  <Button
-                    variant={isTomorrow ? "default" : "outline"}
-                    size="sm"
-                    onClick={setTomorrow}
-                    data-testid="button-tomorrow"
-                    className="flex items-center gap-1"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    Tomorrow
-                  </Button>
-                </div>
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-auto"
-                  data-testid="input-date-filter"
-                />
-              </div>
-            </div>
-            <CardDescription className="flex items-center justify-between">
-              <span>Manage and track appointment status</span>
-              <span className="text-sm font-medium">
-                Viewing: {formatDate(selectedDate)}
-                {isToday && " (Today)"}
-                {isTomorrow && " (Tomorrow)"}
-              </span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {appointments && appointments.length > 0 ? (
-                appointments.map((appointment: any) => (
-                  <div key={appointment.id} className="border rounded-lg p-4 hover:bg-muted/50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="text-center min-w-[60px]">
-                          <div className="text-lg font-bold text-foreground">
-                            {formatTime(appointment.appointmentDate)}
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          {/* Patient name prominently displayed */}
-                          <div className="flex items-center gap-2 mb-2">
-                            <User className="w-5 h-5 text-primary" />
-                            <span className="text-lg font-semibold text-foreground" data-testid={`text-patient-${appointment.id}`}>
-                              {appointment.patient?.firstName} {appointment.patient?.lastName}
-                            </span>
-                          </div>
-                          {/* Appointment type prominently displayed */}
-                          <div className="text-base font-medium text-foreground mb-1">
-                            {appointment.appointmentType}
-                          </div>
-                          {/* Doctor name as secondary information */}
-                          <div className="text-sm text-muted-foreground">
-                            Dr. {appointment.doctor?.name}
-                          </div>
-                          {appointment.notes && (
-                            <div className="text-sm text-muted-foreground mt-2 italic">
-                              {appointment.notes}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(appointment.status)}`}
-                          data-testid={`badge-status-${appointment.id}`}
-                        >
-                          {appointment.status.replace('_', ' ')}
-                        </Badge>
-                        <div className="flex gap-1">
-                          {appointment.status === 'scheduled' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
-                              data-testid={`button-confirm-${appointment.id}`}
-                            >
-                              Confirm
-                            </Button>
-                          )}
-                          {(appointment.status === 'confirmed' || appointment.status === 'scheduled') && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
-                              data-testid={`button-cancel-${appointment.id}`}
-                            >
-                              Cancel
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-muted-foreground" data-testid="text-no-appointments">
-                  No appointments scheduled for {formatDate(selectedDate)}
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>

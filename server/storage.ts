@@ -8,7 +8,7 @@ import {
   type BirthdayWish, type InsertBirthdayWish
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql, isNotNull } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, isNotNull, asc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
