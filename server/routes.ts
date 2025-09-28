@@ -891,6 +891,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get reminder statuses for appointments
+  app.post('/api/appointments/reminders/statuses', authenticateToken, requireRole(['admin', 'staff']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { appointmentIds } = req.body;
+      
+      if (!appointmentIds || !Array.isArray(appointmentIds)) {
+        return res.status(400).json({ message: 'appointmentIds array is required' });
+      }
+      
+      const statuses = await storage.getAppointmentReminderStatuses(appointmentIds);
+      res.json(statuses);
+    } catch (error: any) {
+      console.error('Failed to fetch reminder statuses:', error);
+      res.status(500).json({ message: 'Failed to fetch reminder statuses', error: error.message });
+    }
+  });
+
   // Check-in routes
   app.post('/api/checkins', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {

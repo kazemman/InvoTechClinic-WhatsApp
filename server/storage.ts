@@ -8,13 +8,14 @@ import {
   type BirthdayWish, type InsertBirthdayWish, type AppointmentReminder, type InsertAppointmentReminder
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql, isNotNull, asc } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, isNotNull, asc, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Appointment reminder methods
   insertAppointmentReminder(reminder: InsertAppointmentReminder): Promise<AppointmentReminder>;
   getAppointmentReminderByAppointmentAndType(appointmentId: string, reminderType: 'weekly' | 'daily'): Promise<AppointmentReminder | undefined>;
   updateAppointmentReminderResponse(requestId: string, response: string): Promise<void>;
+  getAppointmentReminderStatuses(appointmentIds: string[]): Promise<{appointmentId: string, weeklyReminder?: AppointmentReminder, dailyReminder?: AppointmentReminder}[]>;
   // User methods
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -1099,6 +1100,29 @@ export class DatabaseStorage implements IStorage {
       .update(appointmentReminders)
       .set({ webhookResponse: response })
       .where(eq(appointmentReminders.requestId, requestId));
+  }
+
+  async getAppointmentReminderStatuses(appointmentIds: string[]): Promise<{appointmentId: string, weeklyReminder?: AppointmentReminder, dailyReminder?: AppointmentReminder}[]> {
+    if (appointmentIds.length === 0) return [];
+    
+    const reminders = await db
+      .select()
+      .from(appointmentReminders)
+      .where(inArray(appointmentReminders.appointmentId, appointmentIds));
+    
+    // Group reminders by appointment ID and type
+    const result = appointmentIds.map(appointmentId => {
+      const weeklyReminder = reminders.find(r => r.appointmentId === appointmentId && r.reminderType === 'weekly');
+      const dailyReminder = reminders.find(r => r.appointmentId === appointmentId && r.reminderType === 'daily');
+      
+      return {
+        appointmentId,
+        weeklyReminder,
+        dailyReminder
+      };
+    });
+    
+    return result;
   }
 }
 
