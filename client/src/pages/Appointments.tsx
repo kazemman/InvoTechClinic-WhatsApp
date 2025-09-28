@@ -24,6 +24,8 @@ export default function Appointments() {
   const [showPatientResults, setShowPatientResults] = useState(false);
   const [selectedWeeklyReminders, setSelectedWeeklyReminders] = useState<string[]>([]);
   const [selectedDailyReminders, setSelectedDailyReminders] = useState<string[]>([]);
+  const [weeklyReminderMessage, setWeeklyReminderMessage] = useState("Hello Michael Davis! ⏰ Friendly reminder: You have an upcoming appointment in one week on Tuesday at 13:00 with Dr [name]. You can respond if you wish to reschedule.");
+  const [dailyReminderMessage, setDailyReminderMessage] = useState("Hello Michael Davis! ⏰ Friendly reminder: You have an upcoming appointment in one week on Tuesday at 13:00 with Dr [name]. You can respond if you wish to reschedule.");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -223,8 +225,8 @@ export default function Appointments() {
 
   // Send appointment reminders mutation
   const sendRemindersMutation = useMutation({
-    mutationFn: async ({ appointmentIds, reminderType }: { appointmentIds: string[], reminderType: 'weekly' | 'daily' }) => {
-      const res = await apiRequest('POST', `/api/appointments/reminders/${reminderType}`, { appointmentIds });
+    mutationFn: async ({ appointmentIds, reminderType, customMessage }: { appointmentIds: string[], reminderType: 'weekly' | 'daily', customMessage?: string }) => {
+      const res = await apiRequest('POST', `/api/appointments/reminders/${reminderType}`, { appointmentIds, customMessage });
       return res.json();
     },
     onSuccess: () => {
@@ -245,20 +247,20 @@ export default function Appointments() {
     },
   });
 
-  // Reminder selection handlers
+  // Reminder selection handlers - Only allow one selection at a time
   const handleWeeklyReminderSelection = (appointmentId: string, checked: boolean) => {
     if (checked) {
-      setSelectedWeeklyReminders(prev => [...prev, appointmentId]);
+      setSelectedWeeklyReminders([appointmentId]); // Only allow one selection
     } else {
-      setSelectedWeeklyReminders(prev => prev.filter(id => id !== appointmentId));
+      setSelectedWeeklyReminders([]);
     }
   };
 
   const handleDailyReminderSelection = (appointmentId: string, checked: boolean) => {
     if (checked) {
-      setSelectedDailyReminders(prev => [...prev, appointmentId]);
+      setSelectedDailyReminders([appointmentId]); // Only allow one selection
     } else {
-      setSelectedDailyReminders(prev => prev.filter(id => id !== appointmentId));
+      setSelectedDailyReminders([]);
     }
   };
 
@@ -271,7 +273,11 @@ export default function Appointments() {
       });
       return;
     }
-    sendRemindersMutation.mutate({ appointmentIds: selectedWeeklyReminders, reminderType: 'weekly' });
+    sendRemindersMutation.mutate({ 
+      appointmentIds: selectedWeeklyReminders, 
+      reminderType: 'weekly',
+      customMessage: weeklyReminderMessage
+    });
   };
 
   const sendDailyReminders = () => {
@@ -283,7 +289,11 @@ export default function Appointments() {
       });
       return;
     }
-    sendRemindersMutation.mutate({ appointmentIds: selectedDailyReminders, reminderType: 'daily' });
+    sendRemindersMutation.mutate({ 
+      appointmentIds: selectedDailyReminders, 
+      reminderType: 'daily',
+      customMessage: dailyReminderMessage
+    });
   };
 
   return (
@@ -674,6 +684,22 @@ export default function Appointments() {
                 <p className="text-sm text-muted-foreground">
                   Send reminders to patients with appointments in 7 days
                 </p>
+                
+                {/* Message field for weekly reminders */}
+                <div className="space-y-2">
+                  <label htmlFor="weekly-message" className="text-sm font-medium">
+                    Reminder Message
+                  </label>
+                  <Textarea
+                    id="weekly-message"
+                    value={weeklyReminderMessage}
+                    onChange={(e) => setWeeklyReminderMessage(e.target.value)}
+                    rows={3}
+                    className="text-sm"
+                    data-testid="textarea-weekly-reminder-message"
+                  />
+                </div>
+                
                 <div className="border rounded-lg p-4 min-h-[200px]">
                   {loadingWeeklyReminders ? (
                     <div className="flex items-center justify-center py-8">
@@ -718,7 +744,7 @@ export default function Appointments() {
                           data-testid="button-send-weekly-reminders"
                         >
                           <Send className="h-3 w-3 mr-1" />
-                          Send Weekly ({selectedWeeklyReminders.length})
+                          Send Weekly Reminder
                         </Button>
                       </div>
                     </div>
@@ -740,6 +766,22 @@ export default function Appointments() {
                 <p className="text-sm text-muted-foreground">
                   Send reminders to patients with appointments tomorrow
                 </p>
+                
+                {/* Message field for daily reminders */}
+                <div className="space-y-2">
+                  <label htmlFor="daily-message" className="text-sm font-medium">
+                    Reminder Message
+                  </label>
+                  <Textarea
+                    id="daily-message"
+                    value={dailyReminderMessage}
+                    onChange={(e) => setDailyReminderMessage(e.target.value)}
+                    rows={3}
+                    className="text-sm"
+                    data-testid="textarea-daily-reminder-message"
+                  />
+                </div>
+                
                 <div className="border rounded-lg p-4 min-h-[200px]">
                   {loadingDailyReminders ? (
                     <div className="flex items-center justify-center py-8">
@@ -784,7 +826,7 @@ export default function Appointments() {
                           data-testid="button-send-daily-reminders"
                         >
                           <Send className="h-3 w-3 mr-1" />
-                          Send Daily ({selectedDailyReminders.length})
+                          Send Daily Reminder
                         </Button>
                       </div>
                     </div>

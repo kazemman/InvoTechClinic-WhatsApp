@@ -641,7 +641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/appointments/reminders/weekly', authenticateToken, requireRole(['admin', 'staff']), async (req: AuthenticatedRequest, res) => {
     try {
-      const { appointmentIds } = req.body;
+      const { appointmentIds, customMessage } = req.body;
       
       if (!appointmentIds || !Array.isArray(appointmentIds) || appointmentIds.length === 0) {
         return res.status(400).json({ message: 'appointmentIds array is required' });
@@ -672,7 +672,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const appointmentDate = new Date(appointment.appointmentDate);
           const dayName = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' });
           const timeStr = appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-          const reminderMessage = `Hello ${appointment.patient?.firstName} ${appointment.patient?.lastName}! ⏰ Friendly reminder: You have an upcoming appointment in one week on ${dayName} at ${timeStr} with Dr ${appointment.doctor?.name}. You can respond if you wish to reschedule.`;
+          
+          // Use custom message if provided, otherwise use default
+          let reminderMessage = customMessage || `Hello ${appointment.patient?.firstName} ${appointment.patient?.lastName}! ⏰ Friendly reminder: You have an upcoming appointment in one week on ${dayName} at ${timeStr} with Dr ${appointment.doctor?.name}. You can respond if you wish to reschedule.`;
+          
+          // Replace placeholders in custom message
+          if (customMessage) {
+            reminderMessage = customMessage
+              .replace(/\[name\]/g, appointment.doctor?.name || 'Doctor')
+              .replace(/Michael Davis/g, `${appointment.patient?.firstName} ${appointment.patient?.lastName}`)
+              .replace(/Tuesday/g, dayName)
+              .replace(/13:00/g, timeStr);
+          }
 
           // Prepare webhook payload with exact format from user
           const webhookPayload = [
@@ -764,7 +775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/appointments/reminders/daily', authenticateToken, requireRole(['admin', 'staff']), async (req: AuthenticatedRequest, res) => {
     try {
-      const { appointmentIds } = req.body;
+      const { appointmentIds, customMessage } = req.body;
       
       if (!appointmentIds || !Array.isArray(appointmentIds) || appointmentIds.length === 0) {
         return res.status(400).json({ message: 'appointmentIds array is required' });
@@ -795,7 +806,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const appointmentDate = new Date(appointment.appointmentDate);
           const dayName = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' });
           const timeStr = appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-          const reminderMessage = `Hello ${appointment.patient?.firstName} ${appointment.patient?.lastName}! ⏰ Reminder: You have an appointment tomorrow (${dayName}) at ${timeStr} with Dr ${appointment.doctor?.name}. Please arrive 15 minutes early.`;
+          
+          // Use custom message if provided, otherwise use default
+          let reminderMessage = customMessage || `Hello ${appointment.patient?.firstName} ${appointment.patient?.lastName}! ⏰ Reminder: You have an appointment tomorrow (${dayName}) at ${timeStr} with Dr ${appointment.doctor?.name}. Please arrive 15 minutes early.`;
+          
+          // Replace placeholders in custom message
+          if (customMessage) {
+            reminderMessage = customMessage
+              .replace(/\[name\]/g, appointment.doctor?.name || 'Doctor')
+              .replace(/Michael Davis/g, `${appointment.patient?.firstName} ${appointment.patient?.lastName}`)
+              .replace(/Tuesday/g, dayName)
+              .replace(/13:00/g, timeStr);
+          }
 
           // Prepare webhook payload with exact format from user
           const webhookPayload = [
