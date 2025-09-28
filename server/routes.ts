@@ -10,7 +10,7 @@ import {
   insertAppointmentSchema, insertCheckInSchema, insertQueueSchema,
   insertConsultationSchema, insertPaymentSchema, insertActivityLogSchema,
   insertMedicalAttachmentSchema, insertMedicalAidClaimSchema, updateMedicalAidClaimSchema,
-  insertBirthdayWishSchema
+  insertBirthdayWishSchema, insertAppointmentReminderSchema
 } from "@shared/schema";
 import { z } from "zod";
 import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, AuthenticatedRequest } from "./auth";
@@ -589,6 +589,261 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.status(400).json({ message: 'Failed to update appointment' });
+    }
+  });
+
+  // Appointment reminder routes
+  app.get('/api/appointments/reminders/weekly', authenticateToken, requireRole(['admin', 'staff']), async (req: AuthenticatedRequest, res) => {
+    try {
+      // Get appointments scheduled for 7 days from now
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + 7);
+      targetDate.setHours(0, 0, 0, 0);
+
+      const endDate = new Date(targetDate);
+      endDate.setHours(23, 59, 59, 999);
+
+      const weeklyAppointments = await storage.getAppointmentsBetweenDates(targetDate, endDate);
+      
+      // Filter out appointments that already have weekly reminders sent
+      // For now, we'll allow all appointments (no database tracking yet)
+      const candidateAppointments = weeklyAppointments || [];
+      
+      res.json(candidateAppointments);
+    } catch (error) {
+      console.error('Failed to fetch weekly reminder candidates:', error);
+      res.status(500).json({ message: 'Failed to fetch weekly reminder candidates' });
+    }
+  });
+
+  app.get('/api/appointments/reminders/daily', authenticateToken, requireRole(['admin', 'staff']), async (req: AuthenticatedRequest, res) => {
+    try {
+      // Get appointments scheduled for tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+
+      const endOfTomorrow = new Date(tomorrow);
+      endOfTomorrow.setHours(23, 59, 59, 999);
+
+      const tomorrowAppointments = await storage.getAppointmentsBetweenDates(tomorrow, endOfTomorrow);
+      
+      // Filter out appointments that already have daily reminders sent
+      // For now, we'll allow all appointments (no database tracking yet)
+      const candidateAppointments = tomorrowAppointments || [];
+      
+      res.json(candidateAppointments);
+    } catch (error) {
+      console.error('Failed to fetch daily reminder candidates:', error);
+      res.status(500).json({ message: 'Failed to fetch daily reminder candidates' });
+    }
+  });
+
+  app.post('/api/appointments/reminders/weekly', authenticateToken, requireRole(['admin', 'staff']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { appointmentIds } = req.body;
+      
+      if (!appointmentIds || !Array.isArray(appointmentIds) || appointmentIds.length === 0) {
+        return res.status(400).json({ message: 'appointmentIds array is required' });
+      }
+
+      const results = [];
+      const timestamp = new Date().toISOString();
+      const requestId = `weekly_reminder_req_${Date.now()}`;
+
+      for (const appointmentId of appointmentIds) {
+        try {
+          const appointment = await storage.getAppointmentWithDetails(appointmentId);
+          if (!appointment) {
+            results.push({ appointmentId, success: false, error: 'Appointment not found' });
+            continue;
+          }
+
+          // Format reminder message
+          const appointmentDate = new Date(appointment.appointmentDate);
+          const dayName = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' });
+          const timeStr = appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+          const reminderMessage = `Hello ${appointment.patient?.firstName} ${appointment.patient?.lastName}! ⏰ Friendly reminder: You have an upcoming appointment in one week on ${dayName} at ${timeStr} with Dr ${appointment.doctor?.name}. You can respond if you wish to reschedule.`;
+
+          // Prepare webhook payload with exact format from user
+          const webhookPayload = [
+            {
+              headers: {
+                host: "n8n.srv937238.hstgr.cloud",
+                "user-agent": "node",
+                "content-length": "350",
+                accept: "*/*",
+                "accept-encoding": "br, gzip, deflate",
+                "accept-language": "*",
+                "content-type": "application/json",
+                "sec-fetch-mode": "cors",
+                "x-forwarded-for": "34.138.46.196",
+                "x-forwarded-host": "n8n.srv937238.hstgr.cloud",
+                "x-forwarded-port": "443",
+                "x-forwarded-proto": "https",
+                "x-forwarded-server": "c37a6f64c427",
+                "x-real-ip": "34.138.46.196"
+              },
+              params: {},
+              query: {},
+              body: {
+                patients: [
+                  {
+                    id: appointment.patient?.id,
+                    firstName: appointment.patient?.firstName,
+                    lastName: appointment.patient?.lastName,
+                    phoneNumber: appointment.patient?.phone,
+                    reminderMessage: reminderMessage,
+                    reminderType: "weekly",
+                    appointmentDate: appointment.appointmentDate
+                  }
+                ],
+                requestId: requestId,
+                timestamp: timestamp,
+                messageType: "weekly_reminder"
+              },
+              webhookUrl: process.env.N8N_WEBHOOK_URL,
+              executionMode: "production"
+            }
+          ];
+
+          // Send to webhook
+          if (process.env.N8N_WEBHOOK_URL) {
+            const response = await fetch(process.env.N8N_WEBHOOK_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(webhookPayload)
+            });
+
+            if (response.ok) {
+              results.push({ appointmentId, success: true, message: 'Weekly reminder sent' });
+            } else {
+              results.push({ appointmentId, success: false, error: `Webhook failed: ${response.statusText}` });
+            }
+          } else {
+            console.log('N8N_WEBHOOK_URL not configured, skipping webhook send');
+            results.push({ appointmentId, success: false, error: 'Webhook URL not configured' });
+          }
+        } catch (error: any) {
+          results.push({ appointmentId, success: false, error: error.message });
+        }
+      }
+
+      const successful = results.filter(r => r.success).length;
+      res.json({
+        message: `Sent ${successful} of ${appointmentIds.length} weekly reminders`,
+        results
+      });
+
+    } catch (error: any) {
+      console.error('Weekly reminder send error:', error);
+      res.status(500).json({ message: 'Failed to send weekly reminders', error: error.message });
+    }
+  });
+
+  app.post('/api/appointments/reminders/daily', authenticateToken, requireRole(['admin', 'staff']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { appointmentIds } = req.body;
+      
+      if (!appointmentIds || !Array.isArray(appointmentIds) || appointmentIds.length === 0) {
+        return res.status(400).json({ message: 'appointmentIds array is required' });
+      }
+
+      const results = [];
+      const timestamp = new Date().toISOString();
+      const requestId = `daily_reminder_req_${Date.now()}`;
+
+      for (const appointmentId of appointmentIds) {
+        try {
+          const appointment = await storage.getAppointmentWithDetails(appointmentId);
+          if (!appointment) {
+            results.push({ appointmentId, success: false, error: 'Appointment not found' });
+            continue;
+          }
+
+          // Format reminder message  
+          const appointmentDate = new Date(appointment.appointmentDate);
+          const dayName = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' });
+          const timeStr = appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+          const reminderMessage = `Hello ${appointment.patient?.firstName} ${appointment.patient?.lastName}! ⏰ Reminder: You have an appointment tomorrow (${dayName}) at ${timeStr} with Dr ${appointment.doctor?.name}. Please arrive 15 minutes early.`;
+
+          // Prepare webhook payload with exact format from user
+          const webhookPayload = [
+            {
+              headers: {
+                host: "n8n.srv937238.hstgr.cloud",
+                "user-agent": "node", 
+                "content-length": "350",
+                accept: "*/*",
+                "accept-encoding": "br, gzip, deflate",
+                "accept-language": "*",
+                "content-type": "application/json",
+                "sec-fetch-mode": "cors",
+                "x-forwarded-for": "34.138.46.196",
+                "x-forwarded-host": "n8n.srv937238.hstgr.cloud",
+                "x-forwarded-port": "443",
+                "x-forwarded-proto": "https",
+                "x-forwarded-server": "c37a6f64c427",
+                "x-real-ip": "34.138.46.196"
+              },
+              params: {},
+              query: {},
+              body: {
+                patients: [
+                  {
+                    id: appointment.patient?.id,
+                    firstName: appointment.patient?.firstName,
+                    lastName: appointment.patient?.lastName,
+                    phoneNumber: appointment.patient?.phone,
+                    reminderMessage: reminderMessage,
+                    reminderType: "daily",
+                    appointmentDate: appointment.appointmentDate
+                  }
+                ],
+                requestId: requestId,
+                timestamp: timestamp,
+                messageType: "daily_reminder"
+              },
+              webhookUrl: process.env.N8N_WEBHOOK_URL,
+              executionMode: "production"
+            }
+          ];
+
+          // Send to webhook
+          if (process.env.N8N_WEBHOOK_URL) {
+            const response = await fetch(process.env.N8N_WEBHOOK_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(webhookPayload)
+            });
+
+            if (response.ok) {
+              results.push({ appointmentId, success: true, message: 'Daily reminder sent' });
+            } else {
+              results.push({ appointmentId, success: false, error: `Webhook failed: ${response.statusText}` });
+            }
+          } else {
+            console.log('N8N_WEBHOOK_URL not configured, skipping webhook send');
+            results.push({ appointmentId, success: false, error: 'Webhook URL not configured' });
+          }
+        } catch (error: any) {
+          results.push({ appointmentId, success: false, error: error.message });
+        }
+      }
+
+      const successful = results.filter(r => r.success).length;
+      res.json({
+        message: `Sent ${successful} of ${appointmentIds.length} daily reminders`,
+        results
+      });
+
+    } catch (error: any) {
+      console.error('Daily reminder send error:', error);
+      res.status(500).json({ message: 'Failed to send daily reminders', error: error.message });
     }
   });
 

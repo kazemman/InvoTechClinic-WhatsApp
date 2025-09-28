@@ -156,6 +156,23 @@ export const birthdayWishes = pgTable("birthday_wishes", {
   };
 });
 
+export const reminderTypeEnum = pgEnum("reminder_type", ["weekly", "daily"]);
+
+export const appointmentReminders = pgTable("appointment_reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  appointmentId: varchar("appointment_id").notNull().references(() => appointments.id),
+  patientId: varchar("patient_id").notNull().references(() => patients.id),
+  reminderType: reminderTypeEnum("reminder_type").notNull(),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  requestId: text("request_id").notNull(),
+  webhookResponse: text("webhook_response"),
+}, (table) => {
+  return {
+    // Unique constraint to prevent duplicate reminders for the same appointment and type
+    uniqueReminder: uniqueIndex("unique_appointment_reminder").on(table.appointmentId, table.reminderType),
+  };
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   appointments: many(appointments),
@@ -268,6 +285,17 @@ export const birthdayWishesRelations = relations(birthdayWishes, ({ one }) => ({
   }),
 }));
 
+export const appointmentRemindersRelations = relations(appointmentReminders, ({ one }) => ({
+  appointment: one(appointments, {
+    fields: [appointmentReminders.appointmentId],
+    references: [appointments.id],
+  }),
+  patient: one(patients, {
+    fields: [appointmentReminders.patientId],
+    references: [patients.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -360,6 +388,11 @@ export const insertBirthdayWishSchema = createInsertSchema(birthdayWishes).omit(
   sentAt: true,
 });
 
+export const insertAppointmentReminderSchema = createInsertSchema(appointmentReminders).omit({
+  id: true,
+  sentAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -383,6 +416,8 @@ export type MedicalAidClaim = typeof medicalAidClaims.$inferSelect;
 export type InsertMedicalAidClaim = z.infer<typeof insertMedicalAidClaimSchema>;
 export type BirthdayWish = typeof birthdayWishes.$inferSelect;
 export type InsertBirthdayWish = z.infer<typeof insertBirthdayWishSchema>;
+export type AppointmentReminder = typeof appointmentReminders.$inferSelect;
+export type InsertAppointmentReminder = z.infer<typeof insertAppointmentReminderSchema>;
 
 // Login schema
 export const loginSchema = z.object({

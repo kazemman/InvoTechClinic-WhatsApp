@@ -14,13 +14,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Calendar, Clock, User, CalendarPlus, Search, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar, Clock, User, CalendarPlus, Search, X, Send, Loader2 } from 'lucide-react';
 
 export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [showPatientResults, setShowPatientResults] = useState(false);
+  const [selectedWeeklyReminders, setSelectedWeeklyReminders] = useState<string[]>([]);
+  const [selectedDailyReminders, setSelectedDailyReminders] = useState<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -73,6 +76,24 @@ export default function Appointments() {
       const res = await apiRequest('GET', '/api/users');
       const users = await res.json();
       return users.filter((user: any) => user.role === 'doctor');
+    },
+  });
+
+  // Get weekly reminder candidates (appointments in 7 days)
+  const { data: weeklyReminderCandidates, isLoading: loadingWeeklyReminders } = useQuery({
+    queryKey: ['/api/appointments/reminders/weekly'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/appointments/reminders/weekly');
+      return res.json();
+    },
+  });
+
+  // Get daily reminder candidates (appointments tomorrow)
+  const { data: dailyReminderCandidates, isLoading: loadingDailyReminders } = useQuery({
+    queryKey: ['/api/appointments/reminders/daily'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/appointments/reminders/daily');
+      return res.json();
     },
   });
 
@@ -198,6 +219,71 @@ export default function Appointments() {
 
   const updateAppointmentStatus = (id: string, status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled') => {
     updateAppointmentMutation.mutate({ id, status });
+  };
+
+  // Send appointment reminders mutation
+  const sendRemindersMutation = useMutation({
+    mutationFn: async ({ appointmentIds, reminderType }: { appointmentIds: string[], reminderType: 'weekly' | 'daily' }) => {
+      const res = await apiRequest('POST', `/api/appointments/reminders/${reminderType}`, { appointmentIds });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Reminders sent!",
+        description: "Appointment reminders have been sent successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments/reminders'] });
+      setSelectedWeeklyReminders([]);
+      setSelectedDailyReminders([]);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send reminders",
+        description: error.message || "An error occurred while sending reminders.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Reminder selection handlers
+  const handleWeeklyReminderSelection = (appointmentId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedWeeklyReminders(prev => [...prev, appointmentId]);
+    } else {
+      setSelectedWeeklyReminders(prev => prev.filter(id => id !== appointmentId));
+    }
+  };
+
+  const handleDailyReminderSelection = (appointmentId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedDailyReminders(prev => [...prev, appointmentId]);
+    } else {
+      setSelectedDailyReminders(prev => prev.filter(id => id !== appointmentId));
+    }
+  };
+
+  const sendWeeklyReminders = () => {
+    if (selectedWeeklyReminders.length === 0) {
+      toast({
+        title: "No appointments selected",
+        description: "Please select at least one appointment to send weekly reminders.",
+        variant: "destructive",
+      });
+      return;
+    }
+    sendRemindersMutation.mutate({ appointmentIds: selectedWeeklyReminders, reminderType: 'weekly' });
+  };
+
+  const sendDailyReminders = () => {
+    if (selectedDailyReminders.length === 0) {
+      toast({
+        title: "No appointments selected",
+        description: "Please select at least one appointment to send daily reminders.",
+        variant: "destructive",
+      });
+      return;
+    }
+    sendRemindersMutation.mutate({ appointmentIds: selectedDailyReminders, reminderType: 'daily' });
   };
 
   return (
@@ -437,6 +523,154 @@ export default function Appointments() {
                 </Button>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+
+        {/* Appointment Reminders Section */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-500" />
+              Appointment Reminders
+            </CardTitle>
+            <CardDescription>
+              Send automatic reminders to patients with upcoming appointments
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* 1-Week Reminders */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-blue-500" />
+                  <h3 className="text-lg font-semibold">1-Week Reminders</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Send reminders to patients with appointments in 7 days
+                </p>
+                <div className="border rounded-lg p-4 min-h-[200px]">
+                  {loadingWeeklyReminders ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2">Loading weekly reminders...</span>
+                    </div>
+                  ) : weeklyReminderCandidates?.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        {weeklyReminderCandidates.map((appointment: any) => (
+                          <div key={appointment.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`weekly-${appointment.id}`}
+                                checked={selectedWeeklyReminders.includes(appointment.id)}
+                                onCheckedChange={(checked: boolean) => handleWeeklyReminderSelection(appointment.id, checked)}
+                                data-testid={`checkbox-weekly-reminder-${appointment.id}`}
+                              />
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">
+                                  {appointment.patient?.firstName} {appointment.patient?.lastName}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(appointment.appointmentDate).toLocaleDateString()} at {new Date(appointment.appointmentDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {appointment.appointmentType} • Dr. {appointment.doctor?.name}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="text-xs text-muted-foreground">
+                          {selectedWeeklyReminders.length} selected
+                        </div>
+                        <Button 
+                          size="sm"
+                          onClick={sendWeeklyReminders}
+                          disabled={selectedWeeklyReminders.length === 0 || sendRemindersMutation.isPending}
+                          data-testid="button-send-weekly-reminders"
+                        >
+                          <Send className="h-3 w-3 mr-1" />
+                          Send Weekly ({selectedWeeklyReminders.length})
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No appointments in 7 days</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 24-Hour Reminders */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-orange-500" />
+                  <h3 className="text-lg font-semibold">24-Hour Reminders</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Send reminders to patients with appointments tomorrow
+                </p>
+                <div className="border rounded-lg p-4 min-h-[200px]">
+                  {loadingDailyReminders ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2">Loading daily reminders...</span>
+                    </div>
+                  ) : dailyReminderCandidates?.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        {dailyReminderCandidates.map((appointment: any) => (
+                          <div key={appointment.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`daily-${appointment.id}`}
+                                checked={selectedDailyReminders.includes(appointment.id)}
+                                onCheckedChange={(checked: boolean) => handleDailyReminderSelection(appointment.id, checked)}
+                                data-testid={`checkbox-daily-reminder-${appointment.id}`}
+                              />
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">
+                                  {appointment.patient?.firstName} {appointment.patient?.lastName}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(appointment.appointmentDate).toLocaleDateString()} at {new Date(appointment.appointmentDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {appointment.appointmentType} • Dr. {appointment.doctor?.name}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="text-xs text-muted-foreground">
+                          {selectedDailyReminders.length} selected
+                        </div>
+                        <Button 
+                          size="sm"
+                          onClick={sendDailyReminders}
+                          disabled={selectedDailyReminders.length === 0 || sendRemindersMutation.isPending}
+                          data-testid="button-send-daily-reminders"
+                        >
+                          <Send className="h-3 w-3 mr-1" />
+                          Send Daily ({selectedDailyReminders.length})
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No appointments tomorrow</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

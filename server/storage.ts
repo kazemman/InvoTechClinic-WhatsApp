@@ -35,6 +35,8 @@ export interface IStorage {
   getAppointmentsByDoctor(doctorId: string, date?: Date): Promise<Appointment[]>;
   getAppointmentsByPatient(patientId: string): Promise<Appointment[]>;
   checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeId?: string): Promise<boolean>;
+  getAppointmentsBetweenDates(startDate: Date, endDate: Date): Promise<any[]>;
+  getAppointmentWithDetails(id: string): Promise<any | undefined>;
 
   // Check-in methods
   createCheckIn(checkIn: InsertCheckIn): Promise<CheckIn>;
@@ -347,6 +349,63 @@ export class DatabaseStorage implements IStorage {
     });
     
     return conflictingAppointments.length > 0;
+  }
+
+  async getAppointmentsBetweenDates(startDate: Date, endDate: Date): Promise<any[]> {
+    return await db.select({
+      id: appointments.id,
+      patientId: appointments.patientId,
+      doctorId: appointments.doctorId,
+      appointmentDate: appointments.appointmentDate,
+      status: appointments.status,
+      appointmentType: appointments.appointmentType,
+      notes: appointments.notes,
+      patient: {
+        id: patients.id,
+        firstName: patients.firstName,
+        lastName: patients.lastName,
+        phone: patients.phone
+      },
+      doctor: {
+        id: users.id,
+        name: users.name
+      }
+    })
+    .from(appointments)
+    .leftJoin(patients, eq(appointments.patientId, patients.id))
+    .leftJoin(users, eq(appointments.doctorId, users.id))
+    .where(and(
+      gte(appointments.appointmentDate, startDate),
+      lte(appointments.appointmentDate, endDate)
+    ))
+    .orderBy(asc(appointments.appointmentDate));
+  }
+
+  async getAppointmentWithDetails(id: string): Promise<any | undefined> {
+    const [appointment] = await db.select({
+      id: appointments.id,
+      patientId: appointments.patientId,
+      doctorId: appointments.doctorId,
+      appointmentDate: appointments.appointmentDate,
+      status: appointments.status,
+      appointmentType: appointments.appointmentType,
+      notes: appointments.notes,
+      patient: {
+        id: patients.id,
+        firstName: patients.firstName,
+        lastName: patients.lastName,
+        phone: patients.phone
+      },
+      doctor: {
+        id: users.id,
+        name: users.name
+      }
+    })
+    .from(appointments)
+    .leftJoin(patients, eq(appointments.patientId, patients.id))
+    .leftJoin(users, eq(appointments.doctorId, users.id))
+    .where(eq(appointments.id, id));
+    return appointment || undefined;
   }
 
   // Check-in methods
