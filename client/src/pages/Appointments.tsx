@@ -22,8 +22,9 @@ export default function Appointments() {
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [showPatientResults, setShowPatientResults] = useState(false);
-  const [selectedWeeklyReminders, setSelectedWeeklyReminders] = useState<string[]>([]);
-  const [selectedDailyReminders, setSelectedDailyReminders] = useState<string[]>([]);
+  const [selectedWeeklyReminder, setSelectedWeeklyReminder] = useState<string | null>(null);
+  const [selectedDailyReminder, setSelectedDailyReminder] = useState<string | null>(null);
+  const [processingSendId, setProcessingSendId] = useState<string | null>(null);
   const [weeklyReminderMessage, setWeeklyReminderMessage] = useState("Hello [name and Lastname]! ⏰ Friendly reminder: You have an upcoming appointment in one week on Tuesday at 13:00 with Dr [name]. You can respond if you wish to reschedule.");
   const [dailyReminderMessage, setDailyReminderMessage] = useState("Hello [name and Last name] ⏰ Friendly reminder: You have an upcoming appointment tomorrow at [time]with Dr [name]. Please arrive 15 minutes before so you can be attended to on time.");
   const { toast } = useToast();
@@ -263,66 +264,62 @@ export default function Appointments() {
     },
     onSuccess: () => {
       toast({
-        title: "Reminders sent!",
-        description: "Appointment reminders have been sent successfully.",
+        title: "Reminder sent!",
+        description: "Appointment reminder has been sent successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ['api', 'appointments', 'reminders'] });
-      setSelectedWeeklyReminders([]);
-      setSelectedDailyReminders([]);
+      setSelectedWeeklyReminder(null);
+      setSelectedDailyReminder(null);
+      setProcessingSendId(null);
     },
     onError: (error: any) => {
       toast({
-        title: "Failed to send reminders",
-        description: error.message || "An error occurred while sending reminders.",
+        title: "Failed to send reminder",
+        description: error.message || "An error occurred while sending the reminder.",
         variant: "destructive",
       });
+      setProcessingSendId(null);
     },
   });
 
-  // Reminder selection handlers - Only allow one selection at a time
-  const handleWeeklyReminderSelection = (appointmentId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedWeeklyReminders([appointmentId]); // Only allow one selection
-    } else {
-      setSelectedWeeklyReminders([]);
-    }
+  // Check if any reminder is being processed
+  const isAnyProcessing = () => {
+    return processingSendId !== null;
   };
 
-  const handleDailyReminderSelection = (appointmentId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedDailyReminders([appointmentId]); // Only allow one selection
-    } else {
-      setSelectedDailyReminders([]);
-    }
+  const isProcessingReminder = (appointmentId: string) => {
+    return processingSendId === appointmentId;
   };
 
-  const sendWeeklyReminders = () => {
-    if (selectedWeeklyReminders.length === 0) {
+  const sendWeeklyReminder = () => {
+    if (!selectedWeeklyReminder) {
       toast({
-        title: "No appointments selected",
-        description: "Please select at least one appointment to send weekly reminders.",
+        title: "No appointment selected",
+        description: "Please select an appointment to send weekly reminder.",
         variant: "destructive",
       });
       return;
     }
+    setProcessingSendId(selectedWeeklyReminder);
     sendRemindersMutation.mutate({ 
-      appointmentIds: selectedWeeklyReminders, 
+      appointmentIds: [selectedWeeklyReminder], 
       reminderType: 'weekly',
       customMessage: weeklyReminderMessage
     });
   };
 
-  const sendDailyReminders = () => {
-    if (selectedDailyReminders.length === 0) {
+  const sendDailyReminder = () => {
+    if (!selectedDailyReminder) {
       toast({
-        title: "No appointments selected",
-        description: "Please select at least one appointment to send daily reminders.",
+        title: "No appointment selected",
+        description: "Please select an appointment to send daily reminder.",
         variant: "destructive",
       });
       return;
     }
+    setProcessingSendId(selectedDailyReminder);
     sendRemindersMutation.mutate({ 
-      appointmentIds: selectedDailyReminders, 
+      appointmentIds: [selectedDailyReminder], 
       reminderType: 'daily',
       customMessage: dailyReminderMessage
     });
@@ -743,14 +740,17 @@ export default function Appointments() {
                   <div className="space-y-3">
                     <div className="space-y-2">
                       {weeklyReminderCandidates.map((appointment: any) => (
-                        <div key={appointment.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id={`weekly-${appointment.id}`}
-                              checked={selectedWeeklyReminders.includes(appointment.id)}
-                              onCheckedChange={(checked: boolean) => handleWeeklyReminderSelection(appointment.id, checked)}
-                              disabled={isReminderSent(appointment.id, 'weekly')}
-                              data-testid={`checkbox-weekly-reminder-${appointment.id}`}
+                        <div key={appointment.id} className={`flex items-center justify-between p-3 border rounded-lg ${selectedWeeklyReminder === appointment.id ? 'border-blue-500 bg-blue-50/50' : ''}`}>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="radio"
+                              id={`radio-weekly-${appointment.id}`}
+                              name="weekly-reminder"
+                              checked={selectedWeeklyReminder === appointment.id}
+                              onChange={() => setSelectedWeeklyReminder(appointment.id)}
+                              disabled={isReminderSent(appointment.id, 'weekly') || isAnyProcessing()}
+                              className="h-4 w-4 text-blue-600"
+                              data-testid={`radio-weekly-reminder-${appointment.id}`}
                             />
                             <div className="flex-1">
                               <p className="font-medium text-sm">
@@ -765,27 +765,39 @@ export default function Appointments() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            {isReminderSent(appointment.id, 'weekly') && (
+                            {isReminderSent(appointment.id, 'weekly') ? (
                               <Badge variant="secondary" data-testid={`badge-sent-weekly-${appointment.id}`}>
                                 <Send className="h-3 w-3 mr-1" />
                                 Sent
                               </Badge>
-                            )}
+                            ) : isProcessingReminder(appointment.id) ? (
+                              <Badge variant="outline" data-testid={`badge-sending-weekly-${appointment.id}`}>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Sending...
+                              </Badge>
+                            ) : null}
                           </div>
                         </div>
                       ))}
                     </div>
-                    <div className="flex justify-between items-center pt-2 border-t">
-                      <div className="text-xs text-muted-foreground">
-                        {selectedWeeklyReminders.length} selected
+                    <div className="flex justify-between items-center pt-3 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        {selectedWeeklyReminder ? 
+                          `Selected: ${weeklyReminderCandidates.find((a: any) => a.id === selectedWeeklyReminder)?.patient?.firstName} ${weeklyReminderCandidates.find((a: any) => a.id === selectedWeeklyReminder)?.patient?.lastName}` 
+                          : 'No appointment selected'
+                        }
                       </div>
                       <Button 
                         size="sm"
-                        onClick={sendWeeklyReminders}
-                        disabled={selectedWeeklyReminders.length === 0 || sendRemindersMutation.isPending}
-                        data-testid="button-send-weekly-reminders"
+                        onClick={sendWeeklyReminder}
+                        disabled={!selectedWeeklyReminder || isAnyProcessing() || Boolean(selectedWeeklyReminder && isReminderSent(selectedWeeklyReminder, 'weekly'))}
+                        data-testid="button-send-weekly-reminder"
                       >
-                        <Send className="h-3 w-3 mr-1" />
+                        {isAnyProcessing() ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Send className="h-3 w-3 mr-1" />
+                        )}
                         Send Weekly Reminder
                       </Button>
                     </div>
@@ -834,14 +846,17 @@ export default function Appointments() {
                   <div className="space-y-3">
                     <div className="space-y-2">
                       {dailyReminderCandidates.map((appointment: any) => (
-                        <div key={appointment.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id={`daily-${appointment.id}`}
-                              checked={selectedDailyReminders.includes(appointment.id)}
-                              onCheckedChange={(checked: boolean) => handleDailyReminderSelection(appointment.id, checked)}
-                              disabled={isReminderSent(appointment.id, 'daily')}
-                              data-testid={`checkbox-daily-reminder-${appointment.id}`}
+                        <div key={appointment.id} className={`flex items-center justify-between p-3 border rounded-lg ${selectedDailyReminder === appointment.id ? 'border-orange-500 bg-orange-50/50' : ''}`}>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="radio"
+                              id={`radio-daily-${appointment.id}`}
+                              name="daily-reminder"
+                              checked={selectedDailyReminder === appointment.id}
+                              onChange={() => setSelectedDailyReminder(appointment.id)}
+                              disabled={isReminderSent(appointment.id, 'daily') || isAnyProcessing()}
+                              className="h-4 w-4 text-orange-600"
+                              data-testid={`radio-daily-reminder-${appointment.id}`}
                             />
                             <div className="flex-1">
                               <p className="font-medium text-sm">
@@ -856,27 +871,39 @@ export default function Appointments() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            {isReminderSent(appointment.id, 'daily') && (
+                            {isReminderSent(appointment.id, 'daily') ? (
                               <Badge variant="secondary" data-testid={`badge-sent-daily-${appointment.id}`}>
                                 <Send className="h-3 w-3 mr-1" />
                                 Sent
                               </Badge>
-                            )}
+                            ) : isProcessingReminder(appointment.id) ? (
+                              <Badge variant="outline" data-testid={`badge-sending-daily-${appointment.id}`}>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Sending...
+                              </Badge>
+                            ) : null}
                           </div>
                         </div>
                       ))}
                     </div>
-                    <div className="flex justify-between items-center pt-2 border-t">
-                      <div className="text-xs text-muted-foreground">
-                        {selectedDailyReminders.length} selected
+                    <div className="flex justify-between items-center pt-3 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        {selectedDailyReminder ? 
+                          `Selected: ${dailyReminderCandidates.find((a: any) => a.id === selectedDailyReminder)?.patient?.firstName} ${dailyReminderCandidates.find((a: any) => a.id === selectedDailyReminder)?.patient?.lastName}` 
+                          : 'No appointment selected'
+                        }
                       </div>
                       <Button 
                         size="sm"
-                        onClick={sendDailyReminders}
-                        disabled={selectedDailyReminders.length === 0 || sendRemindersMutation.isPending}
-                        data-testid="button-send-daily-reminders"
+                        onClick={sendDailyReminder}
+                        disabled={!selectedDailyReminder || isAnyProcessing() || Boolean(selectedDailyReminder && isReminderSent(selectedDailyReminder, 'daily'))}
+                        data-testid="button-send-daily-reminder"
                       >
-                        <Send className="h-3 w-3 mr-1" />
+                        {isAnyProcessing() ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Send className="h-3 w-3 mr-1" />
+                        )}
                         Send Daily Reminder
                       </Button>
                     </div>
