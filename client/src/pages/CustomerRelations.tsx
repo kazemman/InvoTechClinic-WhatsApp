@@ -267,9 +267,11 @@ export default function CustomerRelations() {
                   rows={3}
                   data-testid="textarea-birthday-custom-message"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Leave empty to use default: "Happy Birthday [Name]! 🎉 Wishing you a wonderful year ahead..."
-                </p>
+                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border-l-4 border-blue-500">
+                  <p className="font-medium text-foreground mb-1">Default Birthday Message:</p>
+                  <p className="italic">"Happy Birthday [Name]! 🎉 Wishing you a wonderful year ahead..."</p>
+                  <p className="text-xs mt-1">Leave the custom message field empty to use this default template.</p>
+                </div>
               </div>
               
               {loadingBirthdays ? (
