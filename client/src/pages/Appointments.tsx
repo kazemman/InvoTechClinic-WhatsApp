@@ -54,6 +54,12 @@ export default function Appointments() {
 
   const isReminderSent = (appointmentId: string, reminderType: 'weekly' | 'daily') => {
     const reminder = getReminderStatus(appointmentId, reminderType);
+    console.log(`🔍 Checking reminder sent for ${appointmentId} (${reminderType}):`, {
+      reminder,
+      webhookResponse: reminder?.webhookResponse,
+      isSent: !!(reminder && reminder.webhookResponse),
+      allStatuses: reminderStatuses
+    });
     return !!(reminder && reminder.webhookResponse);
   };
 
