@@ -156,13 +156,13 @@ export const birthdayWishes = pgTable("birthday_wishes", {
   };
 });
 
-export const reminderTypeEnum = pgEnum("reminder_type", ["weekly", "daily"]);
+export const apptReminderTypeEnum = pgEnum("appt_reminder_type_enum", ["weekly", "daily"]);
 
 export const appointmentReminders = pgTable("appointment_reminders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   appointmentId: varchar("appointment_id").notNull().references(() => appointments.id),
   patientId: varchar("patient_id").notNull().references(() => patients.id),
-  reminderType: reminderTypeEnum("reminder_type").notNull(),
+  reminderType: apptReminderTypeEnum("reminder_type").notNull(),
   sentAt: timestamp("sent_at").defaultNow().notNull(),
   requestId: text("request_id").notNull(),
   webhookResponse: text("webhook_response"),
