@@ -650,9 +650,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const results = [];
       const timestamp = new Date().toISOString();
 
+      console.log('Processing appointmentIds:', appointmentIds);
+      
       for (const appointmentId of appointmentIds) {
+        console.log('Processing appointment:', appointmentId);
         try {
           const appointment = await storage.getAppointmentWithDetails(appointmentId);
+          console.log('Retrieved appointment:', appointment ? 'found' : 'not found');
           if (!appointment) {
             results.push({ appointmentId, success: false, error: 'Appointment not found' });
             continue;
@@ -660,7 +664,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Check for existing successful reminder to prevent duplicates
           const existingReminder = await storage.getAppointmentReminderByAppointmentAndType(appointmentId, 'weekly');
+          console.log('Existing reminder check:', existingReminder ? 'found' : 'none');
           if (existingReminder && existingReminder.webhookResponse) {
+            console.log('Skipping - reminder already sent');
             results.push({ appointmentId, success: false, error: 'Weekly reminder already sent', skipped: true, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             continue;
           }
