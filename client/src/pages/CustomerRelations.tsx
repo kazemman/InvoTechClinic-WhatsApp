@@ -77,6 +77,7 @@ export default function CustomerRelations() {
   const [birthdayCustomMessage, setBirthdayCustomMessage] = useState<string>('');
   const [selectedPatients, setSelectedPatients] = useState<string[]>([]);
   const [selectedBirthdayPatients, setSelectedBirthdayPatients] = useState<string[]>([]);
+  const [processingSendIds, setProcessingSendIds] = useState<string[]>([]);
 
   // Get today's birthday patients
   const { data: birthdayPatients, isLoading: loadingBirthdays } = useQuery({
@@ -109,20 +110,29 @@ export default function CustomerRelations() {
   // Send birthday wish mutation
   const sendBirthdayWishMutation = useMutation({
     mutationFn: async ({ patientId, customMessage }: { patientId: string; customMessage?: string }) => {
+      // Add to processing list
+      setProcessingSendIds(prev => [...prev, patientId]);
+      
       const response = await apiRequest('POST', '/api/send-birthday-wish', {
         patientId,
         customMessage: customMessage?.trim() || undefined
       });
-      return response.json();
+      return { ...await response.json(), patientId };
     },
     onSuccess: (data) => {
+      // Remove from processing list
+      setProcessingSendIds(prev => prev.filter(id => id !== data.patientId));
+      
       toast({
         title: "Birthday Wish Sent!",
         description: `Message sent successfully: "${data.message}"`,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/birthday-wishes'] });
     },
-    onError: () => {
+    onError: (error, variables) => {
+      // Remove from processing list
+      setProcessingSendIds(prev => prev.filter(id => id !== variables.patientId));
+      
       toast({
         title: "Error",
         description: "Failed to send birthday wish. Please try again.",
@@ -216,6 +226,10 @@ export default function CustomerRelations() {
     return sentWishes?.some((wish: BirthdayWish) => wish.patientId === patientId);
   };
 
+  const isProcessingSend = (patientId: string) => {
+    return processingSendIds.includes(patientId);
+  };
+
   const handleBirthdayPatientSelection = (patientId: string, checked: boolean) => {
     if (checked) {
       setSelectedBirthdayPatients(prev => [...prev, patientId]);
@@ -234,13 +248,25 @@ export default function CustomerRelations() {
       return;
     }
 
-    selectedBirthdayPatients.forEach(patientId => {
-      if (!isWishSent(patientId)) {
-        sendBirthdayWishMutation.mutate({ 
-          patientId, 
-          customMessage: birthdayCustomMessage 
-        });
-      }
+    // Filter out patients who already have wishes sent or are being processed
+    const eligiblePatients = selectedBirthdayPatients.filter(patientId => 
+      !isWishSent(patientId) && !isProcessingSend(patientId)
+    );
+
+    if (eligiblePatients.length === 0) {
+      toast({
+        title: "No eligible patients",
+        description: "All selected patients already have birthday wishes sent.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    eligiblePatients.forEach(patientId => {
+      sendBirthdayWishMutation.mutate({ 
+        patientId, 
+        customMessage: birthdayCustomMessage 
+      });
     });
     
     setSelectedBirthdayPatients([]);
@@ -301,7 +327,7 @@ export default function CustomerRelations() {
                             id={`birthday-patient-${patient.id}`}
                             checked={selectedBirthdayPatients.includes(patient.id)}
                             onCheckedChange={(checked: boolean) => handleBirthdayPatientSelection(patient.id, checked)}
-                            disabled={isWishSent(patient.id)}
+                            disabled={isWishSent(patient.id) || isProcessingSend(patient.id)}
                             data-testid={`checkbox-birthday-patient-${patient.id}`}
                           />
                           <Calendar className="h-5 w-5 text-blue-500" />
@@ -320,6 +346,11 @@ export default function CustomerRelations() {
                               <MessageSquare className="h-3 w-3 mr-1" />
                               Sent
                             </Badge>
+                          ) : isProcessingSend(patient.id) ? (
+                            <Badge variant="outline" data-testid={`badge-sending-${patient.id}`}>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Sending...
+                            </Badge>
                           ) : (
                             <Button 
                               size="sm"
@@ -328,17 +359,11 @@ export default function CustomerRelations() {
                                 patientId: patient.id, 
                                 customMessage: birthdayCustomMessage 
                               })}
-                              disabled={sendBirthdayWishMutation.isPending}
+                              disabled={sendBirthdayWishMutation.isPending || isWishSent(patient.id) || isProcessingSend(patient.id)}
                               data-testid={`button-send-birthday-${patient.id}`}
                             >
-                              {sendBirthdayWishMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <Send className="h-4 w-4 mr-1" />
-                                  Send Now
-                                </>
-                              )}
+                              <Send className="h-4 w-4 mr-1" />
+                              Send Now
                             </Button>
                           )}
                         </div>
@@ -353,11 +378,19 @@ export default function CustomerRelations() {
                     </div>
                     <Button 
                       onClick={sendBirthdayWishToSelected}
-                      disabled={selectedBirthdayPatients.length === 0 || sendBirthdayWishMutation.isPending}
+                      disabled={
+                        selectedBirthdayPatients.length === 0 || 
+                        sendBirthdayWishMutation.isPending ||
+                        selectedBirthdayPatients.every(id => isWishSent(id) || isProcessingSend(id))
+                      }
                       data-testid="button-send-to-selected-birthday"
                     >
-                      <Send className="h-4 w-4 mr-2" />
-                      Send to Selected ({selectedBirthdayPatients.length})
+                      {sendBirthdayWishMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4 mr-2" />
+                      )}
+                      Send to Selected ({selectedBirthdayPatients.filter(id => !isWishSent(id) && !isProcessingSend(id)).length})
                     </Button>
                   </div>
                 </div>
