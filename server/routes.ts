@@ -649,7 +649,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const results = [];
       const timestamp = new Date().toISOString();
-      const requestId = `weekly_reminder_req_${Date.now()}`;
 
       for (const appointmentId of appointmentIds) {
         try {
@@ -658,6 +657,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             results.push({ appointmentId, success: false, error: 'Appointment not found' });
             continue;
           }
+
+          // Check for existing successful reminder to prevent duplicates
+          const existingReminder = await storage.getAppointmentReminderByAppointmentAndType(appointmentId, 'weekly');
+          if (existingReminder && existingReminder.webhookResponse) {
+            results.push({ appointmentId, success: false, error: 'Weekly reminder already sent', skipped: true, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
+            continue;
+          }
+
+          // Generate unique requestId for this appointment
+          const requestId = `weekly_${appointmentId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
           // Format reminder message
           const appointmentDate = new Date(appointment.appointmentDate);
@@ -717,10 +726,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               body: JSON.stringify(webhookPayload)
             });
 
+            const responseText = await response.text();
+            
             if (response.ok) {
-              results.push({ appointmentId, success: true, message: 'Weekly reminder sent' });
+              // Only create reminder record after successful send
+              await storage.insertAppointmentReminder({
+                appointmentId,
+                patientId: appointment.patientId,
+                reminderType: 'weekly',
+                requestId,
+                webhookResponse: responseText,
+              });
+              results.push({ appointmentId, success: true, message: 'Weekly reminder sent', patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             } else {
-              results.push({ appointmentId, success: false, error: `Webhook failed: ${response.statusText}` });
+              results.push({ appointmentId, success: false, error: `Webhook failed: ${response.statusText}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             }
           } else {
             console.log('N8N_WEBHOOK_URL not configured, skipping webhook send');
@@ -753,7 +772,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const results = [];
       const timestamp = new Date().toISOString();
-      const requestId = `daily_reminder_req_${Date.now()}`;
 
       for (const appointmentId of appointmentIds) {
         try {
@@ -762,6 +780,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             results.push({ appointmentId, success: false, error: 'Appointment not found' });
             continue;
           }
+
+          // Check for existing successful reminder to prevent duplicates
+          const existingReminder = await storage.getAppointmentReminderByAppointmentAndType(appointmentId, 'daily');
+          if (existingReminder && existingReminder.webhookResponse) {
+            results.push({ appointmentId, success: false, error: 'Daily reminder already sent', skipped: true, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
+            continue;
+          }
+
+          // Generate unique requestId for this appointment
+          const requestId = `daily_${appointmentId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
           // Format reminder message  
           const appointmentDate = new Date(appointment.appointmentDate);
@@ -821,10 +849,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               body: JSON.stringify(webhookPayload)
             });
 
+            const responseText = await response.text();
+            
             if (response.ok) {
-              results.push({ appointmentId, success: true, message: 'Daily reminder sent' });
+              // Only create reminder record after successful send
+              await storage.insertAppointmentReminder({
+                appointmentId,
+                patientId: appointment.patientId,
+                reminderType: 'daily',
+                requestId,
+                webhookResponse: responseText,
+              });
+              results.push({ appointmentId, success: true, message: 'Daily reminder sent', patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             } else {
-              results.push({ appointmentId, success: false, error: `Webhook failed: ${response.statusText}` });
+              results.push({ appointmentId, success: false, error: `Webhook failed: ${response.statusText}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             }
           } else {
             console.log('N8N_WEBHOOK_URL not configured, skipping webhook send');

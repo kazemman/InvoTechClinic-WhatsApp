@@ -1,16 +1,20 @@
 import { 
-  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes,
+  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes, appointmentReminders,
   type User, type InsertUser, type Patient, type InsertPatient, 
   type Appointment, type InsertAppointment, type CheckIn, type InsertCheckIn,
   type Queue, type InsertQueue, type Consultation, type InsertConsultation,
   type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog,
   type MedicalAttachment, type InsertMedicalAttachment, type MedicalAidClaim, type InsertMedicalAidClaim,
-  type BirthdayWish, type InsertBirthdayWish
+  type BirthdayWish, type InsertBirthdayWish, type AppointmentReminder, type InsertAppointmentReminder
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, isNotNull, asc } from "drizzle-orm";
 
 export interface IStorage {
+  // Appointment reminder methods
+  insertAppointmentReminder(reminder: InsertAppointmentReminder): Promise<AppointmentReminder>;
+  getAppointmentReminderByAppointmentAndType(appointmentId: string, reminderType: 'weekly' | 'daily'): Promise<AppointmentReminder | undefined>;
+  updateAppointmentReminderResponse(requestId: string, response: string): Promise<void>;
   // User methods
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -1071,6 +1075,30 @@ export class DatabaseStorage implements IStorage {
       .where(
         sql`EXTRACT(MONTH FROM ${patients.dateOfBirth}) = ${todayMonth} AND EXTRACT(DAY FROM ${patients.dateOfBirth}) = ${todayDay}`
       );
+  }
+
+  // Appointment reminder methods
+  async insertAppointmentReminder(reminder: InsertAppointmentReminder): Promise<AppointmentReminder> {
+    const [result] = await db.insert(appointmentReminders).values(reminder).returning();
+    return result;
+  }
+
+  async getAppointmentReminderByAppointmentAndType(appointmentId: string, reminderType: 'weekly' | 'daily'): Promise<AppointmentReminder | undefined> {
+    const [result] = await db
+      .select()
+      .from(appointmentReminders)
+      .where(and(
+        eq(appointmentReminders.appointmentId, appointmentId),
+        eq(appointmentReminders.reminderType, reminderType)
+      ));
+    return result;
+  }
+
+  async updateAppointmentReminderResponse(requestId: string, response: string): Promise<void> {
+    await db
+      .update(appointmentReminders)
+      .set({ webhookResponse: response })
+      .where(eq(appointmentReminders.requestId, requestId));
   }
 }
 

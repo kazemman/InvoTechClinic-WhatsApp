@@ -81,7 +81,7 @@ export default function Appointments() {
 
   // Get weekly reminder candidates (appointments in 7 days)
   const { data: weeklyReminderCandidates, isLoading: loadingWeeklyReminders } = useQuery({
-    queryKey: ['/api/appointments/reminders/weekly'],
+    queryKey: ['api', 'appointments', 'reminders', 'weekly'],
     queryFn: async () => {
       const res = await apiRequest('GET', '/api/appointments/reminders/weekly');
       return res.json();
@@ -90,7 +90,7 @@ export default function Appointments() {
 
   // Get daily reminder candidates (appointments tomorrow)
   const { data: dailyReminderCandidates, isLoading: loadingDailyReminders } = useQuery({
-    queryKey: ['/api/appointments/reminders/daily'],
+    queryKey: ['api', 'appointments', 'reminders', 'daily'],
     queryFn: async () => {
       const res = await apiRequest('GET', '/api/appointments/reminders/daily');
       return res.json();
@@ -232,7 +232,7 @@ export default function Appointments() {
         title: "Reminders sent!",
         description: "Appointment reminders have been sent successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/appointments/reminders'] });
+      queryClient.invalidateQueries({ queryKey: ['api', 'appointments', 'reminders'] });
       setSelectedWeeklyReminders([]);
       setSelectedDailyReminders([]);
     },
