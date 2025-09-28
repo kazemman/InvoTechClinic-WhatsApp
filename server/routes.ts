@@ -679,53 +679,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Replace placeholders in custom message
           if (customMessage) {
             reminderMessage = customMessage
+              .replace(/\[name and Lastname\]/g, `${appointment.patient?.firstName} ${appointment.patient?.lastName}`)
               .replace(/\[name\]/g, appointment.doctor?.name || 'Doctor')
-              .replace(/Michael Davis/g, `${appointment.patient?.firstName} ${appointment.patient?.lastName}`)
               .replace(/Tuesday/g, dayName)
               .replace(/13:00/g, timeStr);
           }
 
-          // Prepare webhook payload with exact format from user
-          const webhookPayload = [
-            {
-              headers: {
-                host: "n8n.srv937238.hstgr.cloud",
-                "user-agent": "node",
-                "content-length": "350",
-                accept: "*/*",
-                "accept-encoding": "br, gzip, deflate",
-                "accept-language": "*",
-                "content-type": "application/json",
-                "sec-fetch-mode": "cors",
-                "x-forwarded-for": "34.138.46.196",
-                "x-forwarded-host": "n8n.srv937238.hstgr.cloud",
-                "x-forwarded-port": "443",
-                "x-forwarded-proto": "https",
-                "x-forwarded-server": "c37a6f64c427",
-                "x-real-ip": "34.138.46.196"
-              },
-              params: {},
-              query: {},
-              body: {
-                patients: [
-                  {
-                    id: appointment.patient?.id,
-                    firstName: appointment.patient?.firstName,
-                    lastName: appointment.patient?.lastName,
-                    phoneNumber: appointment.patient?.phone,
-                    reminderMessage: reminderMessage,
-                    reminderType: "weekly",
-                    appointmentDate: appointment.appointmentDate
-                  }
-                ],
-                requestId: requestId,
-                timestamp: timestamp,
-                messageType: "weekly_reminder"
-              },
-              webhookUrl: process.env.N8N_WEBHOOK_URL,
-              executionMode: "production"
-            }
-          ];
+          // Prepare clean webhook payload for n8n
+          const webhookPayload = {
+            patients: [
+              {
+                id: appointment.patient?.id,
+                firstName: appointment.patient?.firstName,
+                lastName: appointment.patient?.lastName,
+                phoneNumber: appointment.patient?.phone,
+                reminderMessage: reminderMessage,
+                reminderType: "weekly",
+                appointmentDate: appointment.appointmentDate
+              }
+            ],
+            requestId: requestId,
+            timestamp: timestamp,
+            messageType: "weekly_reminder"
+          };
 
           // Send to webhook
           if (process.env.N8N_WEBHOOK_URL) {
@@ -813,53 +789,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Replace placeholders in custom message
           if (customMessage) {
             reminderMessage = customMessage
-              .replace(/\[name\]/g, appointment.doctor?.name || 'Doctor')
-              .replace(/Michael Davis/g, `${appointment.patient?.firstName} ${appointment.patient?.lastName}`)
-              .replace(/Tuesday/g, dayName)
-              .replace(/13:00/g, timeStr);
+              .replace(/\[name and Last name\]/g, `${appointment.patient?.firstName} ${appointment.patient?.lastName}`)
+              .replace(/\[time\]/g, timeStr)
+              .replace(/\[name\]/g, appointment.doctor?.name || 'Doctor');
           }
 
-          // Prepare webhook payload with exact format from user
-          const webhookPayload = [
-            {
-              headers: {
-                host: "n8n.srv937238.hstgr.cloud",
-                "user-agent": "node", 
-                "content-length": "350",
-                accept: "*/*",
-                "accept-encoding": "br, gzip, deflate",
-                "accept-language": "*",
-                "content-type": "application/json",
-                "sec-fetch-mode": "cors",
-                "x-forwarded-for": "34.138.46.196",
-                "x-forwarded-host": "n8n.srv937238.hstgr.cloud",
-                "x-forwarded-port": "443",
-                "x-forwarded-proto": "https",
-                "x-forwarded-server": "c37a6f64c427",
-                "x-real-ip": "34.138.46.196"
-              },
-              params: {},
-              query: {},
-              body: {
-                patients: [
-                  {
-                    id: appointment.patient?.id,
-                    firstName: appointment.patient?.firstName,
-                    lastName: appointment.patient?.lastName,
-                    phoneNumber: appointment.patient?.phone,
-                    reminderMessage: reminderMessage,
-                    reminderType: "daily",
-                    appointmentDate: appointment.appointmentDate
-                  }
-                ],
-                requestId: requestId,
-                timestamp: timestamp,
-                messageType: "daily_reminder"
-              },
-              webhookUrl: process.env.N8N_WEBHOOK_URL,
-              executionMode: "production"
-            }
-          ];
+          // Prepare clean webhook payload for n8n
+          const webhookPayload = {
+            patients: [
+              {
+                id: appointment.patient?.id,
+                firstName: appointment.patient?.firstName,
+                lastName: appointment.patient?.lastName,
+                phoneNumber: appointment.patient?.phone,
+                reminderMessage: reminderMessage,
+                reminderType: "daily",
+                appointmentDate: appointment.appointmentDate
+              }
+            ],
+            requestId: requestId,
+            timestamp: timestamp,
+            messageType: "daily_reminder"
+          };
 
           // Send to webhook
           if (process.env.N8N_WEBHOOK_URL) {
