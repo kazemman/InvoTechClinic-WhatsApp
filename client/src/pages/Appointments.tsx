@@ -268,6 +268,7 @@ export default function Appointments() {
         description: "Appointment reminder has been sent successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ['api', 'appointments', 'reminders'] });
+      queryClient.invalidateQueries({ queryKey: ['api', 'appointments', 'reminders', 'statuses'] });
       setSelectedWeeklyReminder(null);
       setSelectedDailyReminder(null);
       setProcessingSendId(null);
