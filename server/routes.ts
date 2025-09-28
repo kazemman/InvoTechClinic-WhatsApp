@@ -757,7 +757,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const successful = results.filter(r => r.success).length;
       res.json({
         message: `Sent ${successful} of ${appointmentIds.length} weekly reminders`,
-        results
+        results,
+        debug: {
+          appointmentIds,
+          webhookUrl: process.env.N8N_WEBHOOK_URL ? 'configured' : 'missing',
+          timestamp
+        }
       });
 
     } catch (error: any) {
