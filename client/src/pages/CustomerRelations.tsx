@@ -77,6 +77,7 @@ export default function CustomerRelations() {
   const [birthdayCustomMessage, setBirthdayCustomMessage] = useState<string>('');
   const [selectedPatients, setSelectedPatients] = useState<string[]>([]);
   const [processingSendId, setProcessingSendId] = useState<string | null>(null);
+  const [selectedBirthdayPatient, setSelectedBirthdayPatient] = useState<string | null>(null);
 
   // Get today's birthday patients
   const { data: birthdayPatients, isLoading: loadingBirthdays } = useQuery({
@@ -281,11 +282,21 @@ export default function CustomerRelations() {
                 </div>
               ) : birthdayPatients?.length > 0 ? (
                 <div className="space-y-4">
-                  {/* Patient List */}
+                  {/* Patient Selection List */}
                   <div className="space-y-3">
                     {birthdayPatients.map((patient: Patient) => (
-                      <div key={patient.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div key={patient.id} className={`flex items-center justify-between p-3 border rounded-lg ${selectedBirthdayPatient === patient.id ? 'border-blue-500 bg-blue-50/50' : ''}`}>
                         <div className="flex items-center gap-3">
+                          <input
+                            type="radio"
+                            id={`radio-birthday-${patient.id}`}
+                            name="birthday-patient"
+                            checked={selectedBirthdayPatient === patient.id}
+                            onChange={() => setSelectedBirthdayPatient(patient.id)}
+                            disabled={isWishSent(patient.id) || isAnyProcessing()}
+                            className="h-4 w-4 text-blue-600"
+                            data-testid={`radio-birthday-patient-${patient.id}`}
+                          />
                           <Calendar className="h-5 w-5 text-blue-500" />
                           <div>
                             <p className="font-medium" data-testid={`text-birthday-patient-${patient.id}`}>
@@ -307,24 +318,43 @@ export default function CustomerRelations() {
                               <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                               Sending...
                             </Badge>
-                          ) : (
-                            <Button 
-                              size="sm"
-                              variant="outline"
-                              onClick={() => sendBirthdayWishMutation.mutate({ 
-                                patientId: patient.id, 
-                                customMessage: birthdayCustomMessage 
-                              })}
-                              disabled={isWishSent(patient.id) || isAnyProcessing()}
-                              data-testid={`button-send-birthday-${patient.id}`}
-                            >
-                              <Send className="h-4 w-4 mr-1" />
-                              Send Now
-                            </Button>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* Send Button */}
+                  <div className="flex justify-between items-center pt-3 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      {selectedBirthdayPatient ? 
+                        `Selected: ${birthdayPatients.find((p: Patient) => p.id === selectedBirthdayPatient)?.firstName} ${birthdayPatients.find((p: Patient) => p.id === selectedBirthdayPatient)?.lastName}` 
+                        : 'No patient selected'
+                      }
+                    </div>
+                    <Button 
+                      onClick={() => {
+                        if (selectedBirthdayPatient) {
+                          sendBirthdayWishMutation.mutate({ 
+                            patientId: selectedBirthdayPatient, 
+                            customMessage: birthdayCustomMessage 
+                          });
+                        }
+                      }}
+                      disabled={
+                        !selectedBirthdayPatient || 
+                        isAnyProcessing() ||
+                        (selectedBirthdayPatient && isWishSent(selectedBirthdayPatient))
+                      }
+                      data-testid="button-send-birthday-selected"
+                    >
+                      {isAnyProcessing() ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4 mr-2" />
+                      )}
+                      {birthdayCustomMessage.trim() ? 'Send Custom Message' : 'Send Default Message'}
+                    </Button>
                   </div>
                 </div>
               ) : (
