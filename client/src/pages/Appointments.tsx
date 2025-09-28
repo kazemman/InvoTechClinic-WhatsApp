@@ -25,7 +25,7 @@ export default function Appointments() {
   const [selectedWeeklyReminders, setSelectedWeeklyReminders] = useState<string[]>([]);
   const [selectedDailyReminders, setSelectedDailyReminders] = useState<string[]>([]);
   const [weeklyReminderMessage, setWeeklyReminderMessage] = useState("Hello [name and Lastname]! ⏰ Friendly reminder: You have an upcoming appointment in one week on Tuesday at 13:00 with Dr [name]. You can respond if you wish to reschedule.");
-  const [dailyReminderMessage, setDailyReminderMessage] = useState("Hello Michael Davis! ⏰ Friendly reminder: You have an upcoming appointment in one week on Tuesday at 13:00 with Dr [name]. You can respond if you wish to reschedule.");
+  const [dailyReminderMessage, setDailyReminderMessage] = useState("Hello [name and Last name] ⏰ Friendly reminder: You have an upcoming appointment tomorrow at [time]with Dr [name]. Please arrive 15 minutes before so you can be attended to on time.");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
