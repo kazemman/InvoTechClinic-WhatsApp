@@ -8,7 +8,7 @@ import {
   type BirthdayWish, type InsertBirthdayWish, type AppointmentReminder, type InsertAppointmentReminder
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql, isNotNull, asc, inArray } from "drizzle-orm";
+import { eq, desc, and, gte, lte, lt, sql, isNotNull, asc, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Appointment reminder methods
@@ -152,6 +152,7 @@ export interface IStorage {
   createBirthdayWish(wish: InsertBirthdayWish): Promise<BirthdayWish>;
   getBirthdayWishesByDate(date: Date): Promise<BirthdayWish[]>;
   getTodaysBirthdayPatients(): Promise<Patient[]>;
+  cleanupOldBirthdayWishes(): Promise<{ deletedCount: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1076,6 +1077,18 @@ export class DatabaseStorage implements IStorage {
       .where(
         sql`EXTRACT(MONTH FROM ${patients.dateOfBirth}) = ${todayMonth} AND EXTRACT(DAY FROM ${patients.dateOfBirth}) = ${todayDay}`
       );
+  }
+
+  async cleanupOldBirthdayWishes(): Promise<{ deletedCount: number }> {
+    // Delete all birthday wishes that are older than today (previous days)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const result = await db
+      .delete(birthdayWishes)
+      .where(lt(birthdayWishes.sentAt, startOfToday));
+    
+    return { deletedCount: result.rowCount || 0 };
   }
 
   // Appointment reminder methods
