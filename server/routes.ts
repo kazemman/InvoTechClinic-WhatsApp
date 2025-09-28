@@ -705,28 +705,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Send to webhook
           if (process.env.N8N_WEBHOOK_URL) {
-            const response = await fetch(process.env.N8N_WEBHOOK_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(webhookPayload)
-            });
-
-            const responseText = await response.text();
+            console.log('Sending webhook to:', process.env.N8N_WEBHOOK_URL);
+            console.log('Webhook payload:', JSON.stringify(webhookPayload, null, 2));
             
-            if (response.ok) {
-              // Only create reminder record after successful send
-              await storage.insertAppointmentReminder({
-                appointmentId,
-                patientId: appointment.patientId,
-                reminderType: 'weekly',
-                requestId,
-                webhookResponse: responseText,
+            try {
+              const response = await fetch(process.env.N8N_WEBHOOK_URL, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(webhookPayload)
               });
-              results.push({ appointmentId, success: true, message: 'Weekly reminder sent', patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
-            } else {
-              results.push({ appointmentId, success: false, error: `Webhook failed: ${response.statusText}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
+
+              const responseText = await response.text();
+              console.log('Webhook response status:', response.status, response.statusText);
+              console.log('Webhook response body:', responseText);
+              
+              if (response.ok) {
+                // Only create reminder record after successful send
+                await storage.insertAppointmentReminder({
+                  appointmentId,
+                  patientId: appointment.patientId,
+                  reminderType: 'weekly',
+                  requestId,
+                  webhookResponse: responseText,
+                });
+                results.push({ appointmentId, success: true, message: 'Weekly reminder sent', patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
+              } else {
+                console.error('Webhook failed with status:', response.status, response.statusText);
+                results.push({ appointmentId, success: false, error: `Webhook failed: ${response.status} ${response.statusText}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
+              }
+            } catch (fetchError: any) {
+              console.error('Webhook fetch error:', fetchError);
+              results.push({ appointmentId, success: false, error: `Webhook error: ${fetchError.message}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             }
           } else {
             console.log('N8N_WEBHOOK_URL not configured, skipping webhook send');
@@ -814,28 +825,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Send to webhook
           if (process.env.N8N_WEBHOOK_URL) {
-            const response = await fetch(process.env.N8N_WEBHOOK_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(webhookPayload)
-            });
-
-            const responseText = await response.text();
+            console.log('Sending webhook to:', process.env.N8N_WEBHOOK_URL);
+            console.log('Webhook payload:', JSON.stringify(webhookPayload, null, 2));
             
-            if (response.ok) {
-              // Only create reminder record after successful send
-              await storage.insertAppointmentReminder({
-                appointmentId,
-                patientId: appointment.patientId,
-                reminderType: 'daily',
-                requestId,
-                webhookResponse: responseText,
+            try {
+              const response = await fetch(process.env.N8N_WEBHOOK_URL, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(webhookPayload)
               });
-              results.push({ appointmentId, success: true, message: 'Daily reminder sent', patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
-            } else {
-              results.push({ appointmentId, success: false, error: `Webhook failed: ${response.statusText}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
+
+              const responseText = await response.text();
+              console.log('Webhook response status:', response.status, response.statusText);
+              console.log('Webhook response body:', responseText);
+              
+              if (response.ok) {
+                // Only create reminder record after successful send
+                await storage.insertAppointmentReminder({
+                  appointmentId,
+                  patientId: appointment.patientId,
+                  reminderType: 'daily',
+                  requestId,
+                  webhookResponse: responseText,
+                });
+                results.push({ appointmentId, success: true, message: 'Daily reminder sent', patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
+              } else {
+                console.error('Webhook failed with status:', response.status, response.statusText);
+                results.push({ appointmentId, success: false, error: `Webhook failed: ${response.status} ${response.statusText}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
+              }
+            } catch (fetchError: any) {
+              console.error('Webhook fetch error:', fetchError);
+              results.push({ appointmentId, success: false, error: `Webhook error: ${fetchError.message}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             }
           } else {
             console.log('N8N_WEBHOOK_URL not configured, skipping webhook send');
