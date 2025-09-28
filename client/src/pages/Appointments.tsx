@@ -43,6 +43,19 @@ export default function Appointments() {
   const isToday = selectedDate === getTodayDate();
   const isTomorrow = selectedDate === getTomorrowDate();
 
+  // Helper functions for reminder status
+  const getReminderStatus = (appointmentId: string, reminderType: 'weekly' | 'daily') => {
+    if (!reminderStatuses) return null;
+    const status = reminderStatuses.find((s: any) => s.appointmentId === appointmentId);
+    if (!status) return null;
+    return reminderType === 'weekly' ? status.weeklyReminder : status.dailyReminder;
+  };
+
+  const isReminderSent = (appointmentId: string, reminderType: 'weekly' | 'daily') => {
+    const reminder = getReminderStatus(appointmentId, reminderType);
+    return !!(reminder && reminder.webhookResponse);
+  };
+
   const form = useForm<InsertAppointment>({
     resolver: zodResolver(insertAppointmentSchema),
     defaultValues: {
@@ -97,6 +110,25 @@ export default function Appointments() {
       const res = await apiRequest('GET', '/api/appointments/reminders/daily');
       return res.json();
     },
+  });
+
+  // Get reminder statuses for all candidates
+  const { data: reminderStatuses } = useQuery({
+    queryKey: ['api', 'appointments', 'reminders', 'statuses'],
+    queryFn: async () => {
+      const allAppointmentIds = [
+        ...(weeklyReminderCandidates?.map((apt: any) => apt.id) || []),
+        ...(dailyReminderCandidates?.map((apt: any) => apt.id) || [])
+      ];
+      
+      if (allAppointmentIds.length === 0) return [];
+      
+      const res = await apiRequest('POST', '/api/appointments/reminders/statuses', { 
+        appointmentIds: allAppointmentIds 
+      });
+      return res.json();
+    },
+    enabled: !!(weeklyReminderCandidates || dailyReminderCandidates),
   });
 
   const createAppointmentMutation = useMutation({
@@ -717,6 +749,7 @@ export default function Appointments() {
                               id={`weekly-${appointment.id}`}
                               checked={selectedWeeklyReminders.includes(appointment.id)}
                               onCheckedChange={(checked: boolean) => handleWeeklyReminderSelection(appointment.id, checked)}
+                              disabled={isReminderSent(appointment.id, 'weekly')}
                               data-testid={`checkbox-weekly-reminder-${appointment.id}`}
                             />
                             <div className="flex-1">
@@ -730,6 +763,14 @@ export default function Appointments() {
                                 {appointment.appointmentType} • Dr. {appointment.doctor?.name}
                               </p>
                             </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isReminderSent(appointment.id, 'weekly') && (
+                              <Badge variant="secondary" data-testid={`badge-sent-weekly-${appointment.id}`}>
+                                <Send className="h-3 w-3 mr-1" />
+                                Sent
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -799,6 +840,7 @@ export default function Appointments() {
                               id={`daily-${appointment.id}`}
                               checked={selectedDailyReminders.includes(appointment.id)}
                               onCheckedChange={(checked: boolean) => handleDailyReminderSelection(appointment.id, checked)}
+                              disabled={isReminderSent(appointment.id, 'daily')}
                               data-testid={`checkbox-daily-reminder-${appointment.id}`}
                             />
                             <div className="flex-1">
@@ -812,6 +854,14 @@ export default function Appointments() {
                                 {appointment.appointmentType} • Dr. {appointment.doctor?.name}
                               </p>
                             </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isReminderSent(appointment.id, 'daily') && (
+                              <Badge variant="secondary" data-testid={`badge-sent-daily-${appointment.id}`}>
+                                <Send className="h-3 w-3 mr-1" />
+                                Sent
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       ))}
