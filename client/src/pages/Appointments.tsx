@@ -661,187 +661,187 @@ export default function Appointments() {
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        {/* Appointment Reminders Section */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-500" />
-              Appointment Reminders
-            </CardTitle>
-            <CardDescription>
-              Send automatic reminders to patients with upcoming appointments
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* 1-Week Reminders */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-blue-500" />
-                  <h3 className="text-lg font-semibold">1-Week Reminders</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Send reminders to patients with appointments in 7 days
-                </p>
-                
-                {/* Message field for weekly reminders */}
-                <div className="space-y-2">
-                  <label htmlFor="weekly-message" className="text-sm font-medium">
-                    Reminder Message
-                  </label>
-                  <Textarea
-                    id="weekly-message"
-                    value={weeklyReminderMessage}
-                    onChange={(e) => setWeeklyReminderMessage(e.target.value)}
-                    rows={3}
-                    className="text-sm"
-                    data-testid="textarea-weekly-reminder-message"
-                  />
-                </div>
-                
-                <div className="border rounded-lg p-4 min-h-[200px]">
-                  {loadingWeeklyReminders ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                      <span className="ml-2">Loading weekly reminders...</span>
-                    </div>
-                  ) : weeklyReminderCandidates?.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        {weeklyReminderCandidates.map((appointment: any) => (
-                          <div key={appointment.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id={`weekly-${appointment.id}`}
-                                checked={selectedWeeklyReminders.includes(appointment.id)}
-                                onCheckedChange={(checked: boolean) => handleWeeklyReminderSelection(appointment.id, checked)}
-                                data-testid={`checkbox-weekly-reminder-${appointment.id}`}
-                              />
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">
-                                  {appointment.patient?.firstName} {appointment.patient?.lastName}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(appointment.appointmentDate).toLocaleDateString()} at {new Date(appointment.appointmentDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {appointment.appointmentType} • Dr. {appointment.doctor?.name}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t">
-                        <div className="text-xs text-muted-foreground">
-                          {selectedWeeklyReminders.length} selected
-                        </div>
-                        <Button 
-                          size="sm"
-                          onClick={sendWeeklyReminders}
-                          disabled={selectedWeeklyReminders.length === 0 || sendRemindersMutation.isPending}
-                          data-testid="button-send-weekly-reminders"
-                        >
-                          <Send className="h-3 w-3 mr-1" />
-                          Send Weekly Reminder
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No appointments in 7 days</p>
-                    </div>
-                  )}
-                </div>
+      {/* Appointment Reminders Section - Full Width */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-blue-500" />
+            Appointment Reminders
+          </CardTitle>
+          <CardDescription>
+            Send automatic reminders to patients with upcoming appointments
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* 1-Week Reminders */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-blue-500" />
+                <h3 className="text-lg font-semibold">1-Week Reminders</h3>
               </div>
-
-              {/* 24-Hour Reminders */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-orange-500" />
-                  <h3 className="text-lg font-semibold">24-Hour Reminders</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Send reminders to patients with appointments tomorrow
-                </p>
-                
-                {/* Message field for daily reminders */}
-                <div className="space-y-2">
-                  <label htmlFor="daily-message" className="text-sm font-medium">
-                    Reminder Message
-                  </label>
-                  <Textarea
-                    id="daily-message"
-                    value={dailyReminderMessage}
-                    onChange={(e) => setDailyReminderMessage(e.target.value)}
-                    rows={3}
-                    className="text-sm"
-                    data-testid="textarea-daily-reminder-message"
-                  />
-                </div>
-                
-                <div className="border rounded-lg p-4 min-h-[200px]">
-                  {loadingDailyReminders ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                      <span className="ml-2">Loading daily reminders...</span>
-                    </div>
-                  ) : dailyReminderCandidates?.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        {dailyReminderCandidates.map((appointment: any) => (
-                          <div key={appointment.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id={`daily-${appointment.id}`}
-                                checked={selectedDailyReminders.includes(appointment.id)}
-                                onCheckedChange={(checked: boolean) => handleDailyReminderSelection(appointment.id, checked)}
-                                data-testid={`checkbox-daily-reminder-${appointment.id}`}
-                              />
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">
-                                  {appointment.patient?.firstName} {appointment.patient?.lastName}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(appointment.appointmentDate).toLocaleDateString()} at {new Date(appointment.appointmentDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {appointment.appointmentType} • Dr. {appointment.doctor?.name}
-                                </p>
-                              </div>
+              <p className="text-sm text-muted-foreground">
+                Send reminders to patients with appointments in 7 days
+              </p>
+              
+              {/* Message field for weekly reminders */}
+              <div className="space-y-2">
+                <label htmlFor="weekly-message" className="text-sm font-medium">
+                  Reminder Message
+                </label>
+                <Textarea
+                  id="weekly-message"
+                  value={weeklyReminderMessage}
+                  onChange={(e) => setWeeklyReminderMessage(e.target.value)}
+                  rows={3}
+                  className="text-sm"
+                  data-testid="textarea-weekly-reminder-message"
+                />
+              </div>
+              
+              <div className="border rounded-lg p-4 min-h-[200px]">
+                {loadingWeeklyReminders ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="ml-2">Loading weekly reminders...</span>
+                  </div>
+                ) : weeklyReminderCandidates?.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {weeklyReminderCandidates.map((appointment: any) => (
+                        <div key={appointment.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id={`weekly-${appointment.id}`}
+                              checked={selectedWeeklyReminders.includes(appointment.id)}
+                              onCheckedChange={(checked: boolean) => handleWeeklyReminderSelection(appointment.id, checked)}
+                              data-testid={`checkbox-weekly-reminder-${appointment.id}`}
+                            />
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">
+                                {appointment.patient?.firstName} {appointment.patient?.lastName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(appointment.appointmentDate).toLocaleDateString()} at {new Date(appointment.appointmentDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {appointment.appointmentType} • Dr. {appointment.doctor?.name}
+                              </p>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t">
-                        <div className="text-xs text-muted-foreground">
-                          {selectedDailyReminders.length} selected
                         </div>
-                        <Button 
-                          size="sm"
-                          onClick={sendDailyReminders}
-                          disabled={selectedDailyReminders.length === 0 || sendRemindersMutation.isPending}
-                          data-testid="button-send-daily-reminders"
-                        >
-                          <Send className="h-3 w-3 mr-1" />
-                          Send Daily Reminder
-                        </Button>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <div className="text-xs text-muted-foreground">
+                        {selectedWeeklyReminders.length} selected
                       </div>
+                      <Button 
+                        size="sm"
+                        onClick={sendWeeklyReminders}
+                        disabled={selectedWeeklyReminders.length === 0 || sendRemindersMutation.isPending}
+                        data-testid="button-send-weekly-reminders"
+                      >
+                        <Send className="h-3 w-3 mr-1" />
+                        Send Weekly Reminder
+                      </Button>
                     </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No appointments tomorrow</p>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No appointments in 7 days</p>
+                  </div>
+                )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            {/* 24-Hour Reminders */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-orange-500" />
+                <h3 className="text-lg font-semibold">24-Hour Reminders</h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Send reminders to patients with appointments tomorrow
+              </p>
+              
+              {/* Message field for daily reminders */}
+              <div className="space-y-2">
+                <label htmlFor="daily-message" className="text-sm font-medium">
+                  Reminder Message
+                </label>
+                <Textarea
+                  id="daily-message"
+                  value={dailyReminderMessage}
+                  onChange={(e) => setDailyReminderMessage(e.target.value)}
+                  rows={3}
+                  className="text-sm"
+                  data-testid="textarea-daily-reminder-message"
+                />
+              </div>
+              
+              <div className="border rounded-lg p-4 min-h-[200px]">
+                {loadingDailyReminders ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="ml-2">Loading daily reminders...</span>
+                  </div>
+                ) : dailyReminderCandidates?.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {dailyReminderCandidates.map((appointment: any) => (
+                        <div key={appointment.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id={`daily-${appointment.id}`}
+                              checked={selectedDailyReminders.includes(appointment.id)}
+                              onCheckedChange={(checked: boolean) => handleDailyReminderSelection(appointment.id, checked)}
+                              data-testid={`checkbox-daily-reminder-${appointment.id}`}
+                            />
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">
+                                {appointment.patient?.firstName} {appointment.patient?.lastName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(appointment.appointmentDate).toLocaleDateString()} at {new Date(appointment.appointmentDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {appointment.appointmentType} • Dr. {appointment.doctor?.name}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <div className="text-xs text-muted-foreground">
+                        {selectedDailyReminders.length} selected
+                      </div>
+                      <Button 
+                        size="sm"
+                        onClick={sendDailyReminders}
+                        disabled={selectedDailyReminders.length === 0 || sendRemindersMutation.isPending}
+                        data-testid="button-send-daily-reminders"
+                      >
+                        <Send className="h-3 w-3 mr-1" />
+                        Send Daily Reminder
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No appointments tomorrow</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
