@@ -291,7 +291,7 @@ export default function CustomerRelations() {
               Broadcast Message
             </CardTitle>
             <CardDescription>
-              Send messages through n8n workflow to manage patient communications
+              Send messages to all your active users. This message will be sent in batches in the background.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -308,7 +308,7 @@ export default function CustomerRelations() {
                   data-testid="textarea-broadcast-message"
                 />
                 <div className="text-sm text-muted-foreground mt-2">
-                  This message will be sent to your n8n workflow for processing and distribution.
+                  This message will be sent to all your active users in batches through the background workflow.
                 </div>
               </div>
 
