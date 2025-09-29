@@ -1633,7 +1633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       try {
-        // Build query parameters for GET request
+        // Build query parameters for POST request
         const params = new URLSearchParams({
           message: message,
           requestId: requestId,
@@ -1641,11 +1641,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           messageType: "broadcast"
         });
         
-        const getUrl = `${webhookUrl}?${params.toString()}`;
-        console.log('Sending webhook GET to:', getUrl);
+        const postUrl = `${webhookUrl}?${params.toString()}`;
+        console.log('Sending webhook POST to:', postUrl);
         
-        const response = await fetch(getUrl, {
-          method: 'GET',
+        const response = await fetch(postUrl, {
+          method: 'POST',
           signal: AbortSignal.timeout(10000) // 10 second timeout
         });
 
