@@ -1901,7 +1901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: z.string().min(1, 'First name is required'),
         lastName: z.string().min(1, 'Last name is required'),
         phone: z.string().min(10, 'Valid phone number is required'),
-        email: z.string().email().optional().or(z.literal("")),
+        email: z.string().min(1, 'Email is required').email('Valid email is required'),
         dateOfBirth: z.string(),
         gender: z.enum(['male', 'female', 'other']),
         idNumber: z.string().min(1, 'ID number is required'),
