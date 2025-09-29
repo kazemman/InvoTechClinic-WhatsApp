@@ -1629,6 +1629,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       try {
+        console.log('Sending webhook to:', webhookUrl);
+        console.log('Webhook payload:', JSON.stringify(webhookPayload, null, 2));
+        
         const response = await fetch(webhookUrl, {
           method: 'POST',
           headers: {
@@ -1639,17 +1642,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         const responseText = await response.text();
+        console.log('Webhook response status:', response.status);
+        console.log('Webhook response text:', responseText);
 
         // Log activity
         await storage.createActivityLog({
           userId: req.user!.id,
           action: 'send_broadcast',
-          details: `Sent broadcast message: "${message}"`
+          details: `Sent broadcast message: "${message}" - Status: ${response.status}`
         });
 
         res.status(response.ok ? 200 : 502).json({
           success: response.ok,
-          message: response.ok ? 'Broadcast message sent successfully' : 'Webhook failed',
+          message: response.ok ? 'Broadcast message sent successfully' : `Webhook failed with status ${response.status}`,
           statusCode: response.status,
           webhookResponse: responseText
         });
