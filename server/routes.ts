@@ -1849,6 +1849,230 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PUBLIC API ENDPOINTS FOR N8N WHATSAPP WORKFLOW
+  // These endpoints don't require authentication for external n8n access
+
+  // Check if patient exists by phone number
+  app.get('/api/public/patient/lookup/:phone', async (req, res) => {
+    try {
+      const { phone } = req.params;
+      
+      if (!phone || phone.length < 10) {
+        return res.status(400).json({ 
+          exists: false, 
+          message: 'Valid phone number required' 
+        });
+      }
+
+      // Clean phone number (remove spaces, dashes, etc.)
+      const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+      
+      const patient = await storage.getPatientByPhone(cleanPhone);
+      
+      if (patient) {
+        res.json({
+          exists: true,
+          patientId: patient.id,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          phone: patient.phone
+        });
+      } else {
+        res.json({
+          exists: false,
+          message: 'Patient not found'
+        });
+      }
+    } catch (error: any) {
+      console.error('Patient lookup error:', error);
+      res.status(500).json({ 
+        exists: false, 
+        message: 'Error checking patient existence' 
+      });
+    }
+  });
+
+  // Public patient registration endpoint
+  app.post('/api/public/patient/register', async (req, res) => {
+    try {
+      // Validate request body
+      const bodySchema = z.object({
+        firstName: z.string().min(1, 'First name is required'),
+        lastName: z.string().min(1, 'Last name is required'),
+        phone: z.string().min(10, 'Valid phone number is required'),
+        email: z.string().email().optional(),
+        dateOfBirth: z.string(),
+        gender: z.enum(['male', 'female', 'other']),
+        idNumber: z.string().min(1, 'ID number is required'),
+        address: z.string().optional(),
+        medicalAidScheme: z.string().optional(),
+        medicalAidNumber: z.string().optional(),
+        allergies: z.string().optional()
+      });
+
+      const validationResult = bodySchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid patient data',
+          errors: validationResult.error.errors
+        });
+      }
+
+      const patientData = validationResult.data;
+
+      // Check if patient already exists by phone or ID number
+      const existingPatient = await storage.getPatientByPhone(patientData.phone);
+      if (existingPatient) {
+        return res.status(409).json({
+          success: false,
+          message: 'Patient with this phone number already exists',
+          patientId: existingPatient.id
+        });
+      }
+
+      // Create new patient
+      const newPatient = await storage.createPatient({
+        ...patientData,
+        dateOfBirth: new Date(patientData.dateOfBirth)
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Patient registered successfully',
+        patientId: newPatient.id,
+        patient: {
+          id: newPatient.id,
+          firstName: newPatient.firstName,
+          lastName: newPatient.lastName,
+          phone: newPatient.phone,
+          email: newPatient.email
+        }
+      });
+
+    } catch (error: any) {
+      console.error('Patient registration error:', error);
+      
+      if (error.message?.includes('unique constraint')) {
+        return res.status(409).json({
+          success: false,
+          message: 'Patient with this ID number or phone already exists'
+        });
+      }
+      
+      res.status(500).json({
+        success: false,
+        message: 'Failed to register patient'
+      });
+    }
+  });
+
+  // Public appointment booking endpoint
+  app.post('/api/public/appointment/book', async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        patientId: z.string().min(1, 'Patient ID is required'),
+        doctorId: z.string().min(1, 'Doctor ID is required'),
+        appointmentDate: z.string(),
+        appointmentType: z.string().min(1, 'Appointment type is required'),
+        notes: z.string().optional()
+      });
+
+      const validationResult = bodySchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid appointment data',
+          errors: validationResult.error.errors
+        });
+      }
+
+      const { patientId, doctorId, appointmentDate, appointmentType, notes } = validationResult.data;
+
+      // Verify patient exists
+      const patient = await storage.getPatient(patientId);
+      if (!patient) {
+        return res.status(404).json({
+          success: false,
+          message: 'Patient not found'
+        });
+      }
+
+      // Verify doctor exists
+      const doctor = await storage.getUser(doctorId);
+      if (!doctor || doctor.role !== 'doctor') {
+        return res.status(404).json({
+          success: false,
+          message: 'Doctor not found'
+        });
+      }
+
+      // Create appointment
+      const newAppointment = await storage.createAppointment({
+        patientId,
+        doctorId,
+        appointmentDate: new Date(appointmentDate),
+        appointmentType,
+        notes: notes || '',
+        status: 'scheduled'
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Appointment booked successfully',
+        appointmentId: newAppointment.id,
+        appointment: {
+          id: newAppointment.id,
+          patientName: `${patient.firstName} ${patient.lastName}`,
+          doctorName: doctor.name,
+          appointmentDate: newAppointment.appointmentDate,
+          appointmentType: newAppointment.appointmentType,
+          status: newAppointment.status
+        }
+      });
+
+    } catch (error: any) {
+      console.error('Appointment booking error:', error);
+      
+      if (error.message?.includes('unique constraint')) {
+        return res.status(409).json({
+          success: false,
+          message: 'Doctor is not available at this time slot'
+        });
+      }
+      
+      res.status(500).json({
+        success: false,
+        message: 'Failed to book appointment'
+      });
+    }
+  });
+
+  // Get available doctors for appointment booking
+  app.get('/api/public/doctors', async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const availableDoctors = allUsers
+        .filter((user: User) => user.role === 'doctor' && user.isActive)
+        .map((doctor: User) => ({
+          id: doctor.id,
+          name: doctor.name,
+          email: doctor.email
+        }));
+
+      res.json({
+        success: true,
+        doctors: availableDoctors
+      });
+    } catch (error: any) {
+      console.error('Error fetching doctors:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch doctors'
+      });
+    }
+  });
+
   // Serve uploaded files
   // Static file serving for uploads with proper headers for inline viewing
   app.use('/uploads', express.static('uploads', {
