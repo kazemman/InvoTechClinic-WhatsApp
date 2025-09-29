@@ -1629,15 +1629,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       try {
-        console.log('Sending webhook to:', webhookUrl);
-        console.log('Webhook payload:', JSON.stringify(webhookPayload, null, 2));
+        // Build query parameters for GET request
+        const params = new URLSearchParams({
+          message: message,
+          requestId: requestId,
+          timestamp: new Date().toISOString(),
+          messageType: "broadcast"
+        });
         
-        const response = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(webhookPayload),
+        const getUrl = `${webhookUrl}?${params.toString()}`;
+        console.log('Sending webhook GET to:', getUrl);
+        
+        const response = await fetch(getUrl, {
+          method: 'GET',
           signal: AbortSignal.timeout(10000) // 10 second timeout
         });
 
