@@ -17,12 +17,15 @@ import UserManagement from "@/pages/UserManagement";
 import SystemAdmin from "@/pages/SystemAdmin";
 import MedicalAid from "@/pages/MedicalAid";
 import CustomerRelations from "@/pages/CustomerRelations";
+import PublicPatientRegistration from "@/pages/PublicPatientRegistration";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
 
 function Router() {
   return (
     <Switch>
+      {/* Public Routes - No Authentication Required */}
+      <Route path="/register-patient" component={PublicPatientRegistration} />
       <Route path="/login" component={Login} />
       
       <Route path="/">

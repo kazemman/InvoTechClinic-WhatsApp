@@ -10,7 +10,8 @@ import {
   insertAppointmentSchema, insertCheckInSchema, insertQueueSchema,
   insertConsultationSchema, insertPaymentSchema, insertActivityLogSchema,
   insertMedicalAttachmentSchema, insertMedicalAidClaimSchema, updateMedicalAidClaimSchema,
-  insertBirthdayWishSchema, insertAppointmentReminderSchema
+  insertBirthdayWishSchema, insertAppointmentReminderSchema,
+  type User
 } from "@shared/schema";
 import { z } from "zod";
 import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, AuthenticatedRequest } from "./auth";
