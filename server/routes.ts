@@ -1520,23 +1520,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: 'Birthday webhook URL not configured' });
       }
 
-      // Build query parameters for GET request
-      const params = new URLSearchParams({
-        patientId: (parseInt(patient.id) || patient.id).toString(),
-        firstName: patient.firstName,
-        lastName: patient.lastName,
-        phoneNumber: patient.phone,
-        birthdayMessage: message,
+      const webhookPayload = {
+        patients: [
+          {
+            id: parseInt(patient.id) || patient.id,
+            firstName: patient.firstName,
+            lastName: patient.lastName,
+            phoneNumber: patient.phone,
+            birthdayMessage: message
+          }
+        ],
         requestId: `birthday_req_${new Date().toISOString().split('T')[0].replace(/-/g, '')}`,
         timestamp: new Date().toISOString(),
         messageType: "birthday"
-      });
-      
-      const getUrl = `${webhookUrl}?${params.toString()}`;
-      console.log('Sending birthday webhook GET to:', getUrl);
+      };
 
-      const response = await fetch(getUrl, {
-        method: 'GET',
+      console.log('Sending birthday webhook POST to:', webhookUrl);
+      console.log('Birthday webhook payload:', JSON.stringify(webhookPayload, null, 2));
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(webhookPayload),
         signal: AbortSignal.timeout(10000) // 10 second timeout
       });
 
