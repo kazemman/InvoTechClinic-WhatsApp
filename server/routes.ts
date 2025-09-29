@@ -1514,32 +1514,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const message = customMessage?.trim() || 
         `Happy Birthday ${patient.firstName}! 🎉 Wishing you a wonderful year ahead filled with health and happiness. From all of us at the clinic! 🎂`;
 
-      // Send to N8N webhook
-      const webhookUrl = process.env.N8N_WEBHOOK_URL;
+      // Send to N8N birthday webhook
+      const webhookUrl = process.env.N8N_BIRTHDAY_WEBHOOK_URL;
       if (!webhookUrl) {
-        return res.status(500).json({ message: 'Webhook URL not configured' });
+        return res.status(500).json({ message: 'Birthday webhook URL not configured' });
       }
 
-      const webhookPayload = {
-        patients: [
-          {
-            id: parseInt(patient.id) || patient.id,
-            firstName: patient.firstName,
-            lastName: patient.lastName,
-            phoneNumber: patient.phone,
-            birthdayMessage: message
-          }
-        ],
+      // Build query parameters for GET request
+      const params = new URLSearchParams({
+        patientId: (parseInt(patient.id) || patient.id).toString(),
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        phoneNumber: patient.phone,
+        birthdayMessage: message,
         requestId: `birthday_req_${new Date().toISOString().split('T')[0].replace(/-/g, '')}`,
-        timestamp: new Date().toISOString()
-      };
+        timestamp: new Date().toISOString(),
+        messageType: "birthday"
+      });
+      
+      const getUrl = `${webhookUrl}?${params.toString()}`;
+      console.log('Sending birthday webhook GET to:', getUrl);
 
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(webhookPayload),
+      const response = await fetch(getUrl, {
+        method: 'GET',
         signal: AbortSignal.timeout(10000) // 10 second timeout
       });
 
