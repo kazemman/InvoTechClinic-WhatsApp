@@ -710,12 +710,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
 
           // Send to webhook
-          if (process.env.N8N_WEBHOOK_URL) {
-            console.log('Sending webhook to:', process.env.N8N_WEBHOOK_URL);
+          if (process.env.N8N_BIRTHDAY_WEBHOOK_URL) {
+            console.log('Sending webhook to:', process.env.N8N_BIRTHDAY_WEBHOOK_URL);
             console.log('Webhook payload:', JSON.stringify(webhookPayload, null, 2));
             
             try {
-              const response = await fetch(process.env.N8N_WEBHOOK_URL, {
+              const response = await fetch(process.env.N8N_BIRTHDAY_WEBHOOK_URL, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -746,7 +746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               results.push({ appointmentId, success: false, error: `Webhook error: ${fetchError.message}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             }
           } else {
-            console.log('N8N_WEBHOOK_URL not configured, skipping webhook send');
+            console.log('N8N_BIRTHDAY_WEBHOOK_URL not configured, skipping webhook send');
             results.push({ appointmentId, success: false, error: 'Webhook URL not configured' });
           }
         } catch (error: any) {
@@ -760,7 +760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         results,
         debug: {
           appointmentIds,
-          webhookUrl: process.env.N8N_WEBHOOK_URL ? 'configured' : 'missing',
+          webhookUrl: process.env.N8N_BIRTHDAY_WEBHOOK_URL ? 'configured' : 'missing',
           timestamp
         }
       });
@@ -835,12 +835,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
 
           // Send to webhook
-          if (process.env.N8N_WEBHOOK_URL) {
-            console.log('Sending webhook to:', process.env.N8N_WEBHOOK_URL);
+          if (process.env.N8N_BIRTHDAY_WEBHOOK_URL) {
+            console.log('Sending webhook to:', process.env.N8N_BIRTHDAY_WEBHOOK_URL);
             console.log('Webhook payload:', JSON.stringify(webhookPayload, null, 2));
             
             try {
-              const response = await fetch(process.env.N8N_WEBHOOK_URL, {
+              const response = await fetch(process.env.N8N_BIRTHDAY_WEBHOOK_URL, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -871,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               results.push({ appointmentId, success: false, error: `Webhook error: ${fetchError.message}`, patientName: `${appointment.patient?.firstName} ${appointment.patient?.lastName}` });
             }
           } else {
-            console.log('N8N_WEBHOOK_URL not configured, skipping webhook send');
+            console.log('N8N_BIRTHDAY_WEBHOOK_URL not configured, skipping webhook send');
             results.push({ appointmentId, success: false, error: 'Webhook URL not configured' });
           }
         } catch (error: any) {
