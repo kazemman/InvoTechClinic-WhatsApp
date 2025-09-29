@@ -15,7 +15,7 @@ const patientRegistrationSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   phone: z.string().min(10, "Valid phone number is required"),
-  email: z.string().email("Valid email is required").optional().or(z.literal("")),
+  email: z.string().min(1, "Email is required").email("Valid email is required"),
   dateOfBirth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female", "other"], {
     required_error: "Please select a gender",
@@ -183,7 +183,7 @@ export default function PublicPatientRegistration() {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel>Email *</FormLabel>
                           <FormControl>
                             <Input 
                               data-testid="input-email" 
