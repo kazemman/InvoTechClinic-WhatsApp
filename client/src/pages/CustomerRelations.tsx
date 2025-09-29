@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { 
   Gift, Heart, Users, Send, Loader2, 
-  Calendar, MessageSquare, Stethoscope 
+  Calendar, MessageSquare, Megaphone 
 } from 'lucide-react';
 
 interface Patient {
@@ -30,52 +30,11 @@ interface BirthdayWish {
   sentAt?: string;
 }
 
-interface HealthAdvice {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-}
-
-const predefinedHealthAdvice: HealthAdvice[] = [
-  {
-    id: '1',
-    title: 'Stay Hydrated',
-    content: 'Remember to drink at least 8 glasses of water daily. Proper hydration is essential for your overall health and well-being.',
-    category: 'General Health'
-  },
-  {
-    id: '2', 
-    title: 'Regular Exercise',
-    content: 'Aim for at least 30 minutes of moderate exercise daily. Even a simple walk can make a significant difference to your health.',
-    category: 'Fitness'
-  },
-  {
-    id: '3',
-    title: 'Balanced Diet',
-    content: 'Include plenty of fruits, vegetables, and whole grains in your diet. A balanced diet provides essential nutrients for optimal health.',
-    category: 'Nutrition'
-  },
-  {
-    id: '4',
-    title: 'Regular Check-ups',
-    content: 'Schedule regular medical check-ups to monitor your health and catch any potential issues early.',
-    category: 'Preventive Care'
-  },
-  {
-    id: '5',
-    title: 'Mental Health',
-    content: 'Take time for mental health. Practice stress management techniques like meditation, deep breathing, or talking to someone you trust.',
-    category: 'Mental Wellness'
-  }
-];
 
 export default function CustomerRelations() {
   const { toast } = useToast();
-  const [selectedAdvice, setSelectedAdvice] = useState<string>('');
-  const [customMessage, setCustomMessage] = useState<string>('');
   const [birthdayCustomMessage, setBirthdayCustomMessage] = useState<string>('');
-  const [selectedPatients, setSelectedPatients] = useState<string[]>([]);
+  const [broadcastMessage, setBroadcastMessage] = useState<string>('');
   const [processingSendId, setProcessingSendId] = useState<string | null>(null);
   const [selectedBirthdayPatient, setSelectedBirthdayPatient] = useState<string | null>(null);
 
@@ -89,14 +48,6 @@ export default function CustomerRelations() {
     refetchInterval: 60000, // Refresh every minute to catch midnight updates
   });
 
-  // Get all active patients for health advice
-  const { data: allPatients, isLoading: loadingPatients } = useQuery({
-    queryKey: ['/api/patients'],
-    queryFn: async () => {
-      const res = await apiRequest('GET', '/api/patients');
-      return res.json();
-    },
-  });
 
   // Get birthday wishes sent today
   const { data: sentWishes } = useQuery({
@@ -141,77 +92,42 @@ export default function CustomerRelations() {
     }
   });
 
-  // Send health advice mutation
-  const sendHealthAdviceMutation = useMutation({
-    mutationFn: async ({ adviceId, customMessage, patientIds }: { 
-      adviceId?: string; 
-      customMessage?: string; 
-      patientIds: string[] 
-    }) => {
-      const response = await apiRequest('POST', '/api/send-health-advice', {
-        adviceId,
-        customMessage,
-        patientIds
+  // Send broadcast message mutation
+  const sendBroadcastMutation = useMutation({
+    mutationFn: async ({ message }: { message: string }) => {
+      const response = await apiRequest('POST', '/api/send-broadcast', {
+        message
       });
       return response.json();
     },
     onSuccess: (data) => {
       toast({
-        title: "Health Advice Sent!",
-        description: `Message sent to ${data.sentCount} patients`,
+        title: "Broadcast Sent!",
+        description: "Message sent successfully to n8n workflow",
       });
-      setSelectedAdvice('');
-      setCustomMessage('');
-      setSelectedPatients([]);
+      setBroadcastMessage('');
     },
     onError: () => {
       toast({
         title: "Error", 
-        description: "Failed to send health advice. Please try again.",
+        description: "Failed to send broadcast message. Please try again.",
         variant: "destructive"
       });
     }
   });
 
-  const handleSelectAllPatients = () => {
-    if (selectedPatients.length === allPatients?.length) {
-      setSelectedPatients([]);
-    } else {
-      setSelectedPatients(allPatients?.map((p: Patient) => p.id) || []);
-    }
-  };
-
-  const handlePatientToggle = (patientId: string) => {
-    setSelectedPatients(prev => 
-      prev.includes(patientId) 
-        ? prev.filter(id => id !== patientId)
-        : [...prev, patientId]
-    );
-  };
-
-  const handleSendHealthAdvice = () => {
-    if (selectedPatients.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please select at least one patient to send health advice to.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!selectedAdvice && !customMessage.trim()) {
+  const handleSendBroadcast = () => {
+    if (!broadcastMessage.trim()) {
       toast({
         title: "Error", 
-        description: "Please select a health advice template or write a custom message.",
+        description: "Please enter a message to broadcast.",
         variant: "destructive"
       });
       return;
     }
 
-    sendHealthAdviceMutation.mutate({
-      adviceId: selectedAdvice || undefined,
-      customMessage: customMessage.trim() || undefined,
-      patientIds: selectedPatients
+    sendBroadcastMutation.mutate({
+      message: broadcastMessage.trim()
     });
   };
 
@@ -367,146 +283,63 @@ export default function CustomerRelations() {
           </CardContent>
         </Card>
 
-        {/* Health Advice Section */}
+        {/* Broadcast Message Section */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Stethoscope className="h-5 w-5 text-green-500" />
-              Health Advice
+              <Megaphone className="h-5 w-5 text-blue-500" />
+              Broadcast Message
             </CardTitle>
             <CardDescription>
-              Send health tips and advice to selected patients
+              Send messages through n8n workflow to manage patient communications
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {/* Health Advice Templates */}
+              {/* Message Input */}
               <div>
-                <label className="text-sm font-medium mb-2 block">Health Advice Template</label>
-                <Select value={selectedAdvice} onValueChange={setSelectedAdvice}>
-                  <SelectTrigger data-testid="select-health-advice">
-                    <SelectValue placeholder="Select a health advice template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {predefinedHealthAdvice.map((advice) => (
-                      <SelectItem key={advice.id} value={advice.id}>
-                        <div className="flex flex-col">
-                          <span>{advice.title}</span>
-                          <span className="text-xs text-muted-foreground">{advice.category}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Custom Message */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">Or Write Custom Message</label>
+                <Label htmlFor="broadcast-message">Message</Label>
                 <Textarea
-                  placeholder="Write your custom health advice message..."
-                  value={customMessage}
-                  onChange={(e) => setCustomMessage(e.target.value)}
-                  rows={3}
-                  data-testid="textarea-custom-message"
+                  id="broadcast-message"
+                  placeholder="Enter your message to broadcast..."
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  rows={4}
+                  data-testid="textarea-broadcast-message"
                 />
-              </div>
-
-              {/* Patient Selection */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium">Select Patients</label>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleSelectAllPatients}
-                    data-testid="button-select-all-patients"
-                  >
-                    {selectedPatients.length === allPatients?.length ? 'Deselect All' : 'Select All'}
-                  </Button>
+                <div className="text-sm text-muted-foreground mt-2">
+                  This message will be sent to your n8n workflow for processing and distribution.
                 </div>
-                
-                <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-1">
-                  {loadingPatients ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Loading patients...
-                    </div>
-                  ) : (
-                    allPatients?.map((patient: Patient) => (
-                      <div key={patient.id} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`patient-${patient.id}`}
-                          checked={selectedPatients.includes(patient.id)}
-                          onChange={() => handlePatientToggle(patient.id)}
-                          className="rounded"
-                          data-testid={`checkbox-patient-${patient.id}`}
-                        />
-                        <label 
-                          htmlFor={`patient-${patient.id}`}
-                          className="text-sm cursor-pointer flex-1"
-                        >
-                          {patient.firstName} {patient.lastName} - {patient.phone}
-                        </label>
-                      </div>
-                    ))
-                  )}
-                </div>
-                
-                {selectedPatients.length > 0 && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {selectedPatients.length} patient(s) selected
-                  </p>
-                )}
               </div>
 
               {/* Send Button */}
               <Button 
-                onClick={handleSendHealthAdvice}
-                disabled={sendHealthAdviceMutation.isPending}
+                onClick={handleSendBroadcast}
+                disabled={sendBroadcastMutation.isPending || !broadcastMessage.trim()}
                 className="w-full"
-                data-testid="button-send-health-advice"
+                data-testid="button-send-broadcast"
               >
-                {sendHealthAdviceMutation.isPending ? (
+                {sendBroadcastMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 ) : (
-                  <Send className="h-4 w-4 mr-2" />
+                  <Megaphone className="h-4 w-4 mr-2" />
                 )}
-                Send Health Advice
+                Send Broadcast Message
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Preview selected advice */}
-      {selectedAdvice && (
+      {/* Broadcast Message Preview */}
+      {broadcastMessage && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Message Preview</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="bg-muted p-4 rounded-lg">
-              <p className="font-medium mb-2">
-                {predefinedHealthAdvice.find(a => a.id === selectedAdvice)?.title}
-              </p>
-              <p className="text-sm">
-                {predefinedHealthAdvice.find(a => a.id === selectedAdvice)?.content}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {customMessage && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Custom Message Preview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm">{customMessage}</p>
+              <p className="text-sm">{broadcastMessage}</p>
             </div>
           </CardContent>
         </Card>

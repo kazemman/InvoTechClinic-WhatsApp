@@ -1593,7 +1593,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Broadcast message endpoint
+  app.post('/api/send-broadcast', authenticateToken, requireRole(['staff', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      // Validate request body with Zod
+      const bodySchema = z.object({
+        message: z.string().min(1, 'Message is required')
+      });
+      
+      const validationResult = bodySchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: 'Invalid request data',
+          errors: validationResult.error.errors 
+        });
+      }
+
+      const { message } = validationResult.data;
+
+      // Get webhook URL
+      const webhookUrl = process.env.N8N_WEBHOOK_URL;
+      if (!webhookUrl) {
+        return res.status(500).json({ message: 'Webhook URL not configured' });
+      }
+
+      // Generate unique requestId for this broadcast
+      const requestId = `broadcast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Prepare clean webhook payload for n8n
+      const webhookPayload = {
+        message: message,
+        requestId: requestId,
+        timestamp: new Date().toISOString(),
+        messageType: "broadcast"
+      };
+
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(webhookPayload),
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
+
+        const responseText = await response.text();
+
+        // Log activity
+        await storage.createActivityLog({
+          userId: req.user!.id,
+          action: 'send_broadcast',
+          details: `Sent broadcast message: "${message}"`
+        });
+
+        res.status(response.ok ? 200 : 502).json({
+          success: response.ok,
+          message: response.ok ? 'Broadcast message sent successfully' : 'Webhook failed',
+          statusCode: response.status,
+          webhookResponse: responseText
+        });
+
+      } catch (error: any) {
+        console.error('Failed to send broadcast message:', error);
+        let errorMessage = 'Webhook error';
+        if (error.name === 'AbortError') {
+          errorMessage = 'Webhook timeout';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        res.status(504).json({ 
+          success: false,
+          message: 'Failed to send broadcast message to webhook',
+          error: errorMessage
+        });
+      }
+
+    } catch (error) {
+      console.error('Failed to send broadcast:', error);
+      res.status(500).json({ message: 'Failed to send broadcast message' });
+    }
+  });
+
+  // Deprecated health advice endpoint
   app.post('/api/send-health-advice', authenticateToken, requireRole(['staff', 'admin']), async (req: AuthenticatedRequest, res) => {
+    res.status(410).json({ 
+      message: 'This endpoint is deprecated. Please use /api/send-broadcast instead.',
+      deprecated: true 
+    });
+  });
+
+  // Legacy health advice endpoint (to be removed)
+  app.post('/api/send-health-advice-legacy', authenticateToken, requireRole(['staff', 'admin']), async (req: AuthenticatedRequest, res) => {
     try {
       // Validate request body with Zod
       const bodySchema = z.object({
