@@ -13,17 +13,23 @@ app.use((req, res, next) => {
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+  // Only capture response bodies in development for debugging
+  if (app.get("env") === "development") {
+    const originalResJson = res.json;
+    res.json = function (bodyJson, ...args) {
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
+  }
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
+      // In production, only log method, path, status, and duration (no response body for privacy)
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      
+      // Only include response body in development
+      if (app.get("env") === "development" && capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
@@ -60,10 +66,20 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
+    
+    // Log full error details server-side for debugging
+    log(`Error: ${err.message || err}`, 'error');
+    if (err.stack) {
+      log(err.stack, 'error');
+    }
+    
+    // In production, send generic messages for 500 errors to avoid leaking internal details
+    // For 4xx errors, preserve the specific message (validation, auth, etc.)
+    const message = app.get("env") === "production" && status >= 500
+      ? "Internal Server Error"
+      : (err.message || "Internal Server Error");
+    
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
