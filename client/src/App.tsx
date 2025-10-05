@@ -18,6 +18,7 @@ import SystemAdmin from "@/pages/SystemAdmin";
 import MedicalAid from "@/pages/MedicalAid";
 import CustomerRelations from "@/pages/CustomerRelations";
 import PublicPatientRegistration from "@/pages/PublicPatientRegistration";
+import ApiKeys from "@/pages/ApiKeys";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
 
@@ -120,6 +121,14 @@ function Router() {
         <ProtectedRoute requiredRoles={['admin']}>
           <Layout>
             <SystemAdmin />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/api-keys">
+        <ProtectedRoute>
+          <Layout>
+            <ApiKeys />
           </Layout>
         </ProtectedRoute>
       </Route>

@@ -4,7 +4,7 @@ import { apiRequest, logout } from '@/lib/auth';
 import { 
   LayoutDashboard, UserPlus, Calendar, ClipboardCheck, 
   Users, UserRound, TrendingUp, Settings, Shield,
-  X, CreditCard, Sun, Moon, Heart
+  X, CreditCard, Sun, Moon, Heart, Key
 } from 'lucide-react';
 import invoTechLogo from '@assets/invotech-high-resolution-logo (1)_1757968142020.png';
 import { useTheme } from './ThemeProvider';
@@ -48,6 +48,7 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
     { icon: CreditCard, label: 'Medical Aid Claims', path: '/medical-aid', roles: ['staff', 'admin'] },
     { icon: TrendingUp, label: 'Business Insights', path: '/insights', roles: ['admin'] },
     { icon: Settings, label: 'User Management', path: '/users', roles: ['admin'] },
+    { icon: Key, label: 'API Keys', path: '/api-keys', roles: ['staff', 'admin', 'doctor'] },
     { icon: Shield, label: 'System Admin', path: '/admin', roles: ['admin'] },
   ];
 
