@@ -156,6 +156,20 @@ export const birthdayWishes = pgTable("birthday_wishes", {
   };
 });
 
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  lastUsedAt: timestamp("last_used_at"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("api_keys_user_id_idx").on(table.userId),
+  };
+});
+
 export const apptReminderTypeEnum = pgEnum("appt_reminder_type_enum", ["weekly", "daily"]);
 
 export const appointmentReminders = pgTable("appointment_reminders", {
@@ -180,6 +194,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   consultations: many(consultations),
   activityLogs: many(activityLogs),
   birthdayWishes: many(birthdayWishes),
+  apiKeys: many(apiKeys),
 }));
 
 export const patientsRelations = relations(patients, ({ many }) => ({
@@ -296,6 +311,13 @@ export const appointmentRemindersRelations = relations(appointmentReminders, ({ 
   }),
 }));
 
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [apiKeys.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -393,6 +415,12 @@ export const insertAppointmentReminderSchema = createInsertSchema(appointmentRem
   sentAt: true,
 });
 
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -418,6 +446,8 @@ export type BirthdayWish = typeof birthdayWishes.$inferSelect;
 export type InsertBirthdayWish = z.infer<typeof insertBirthdayWishSchema>;
 export type AppointmentReminder = typeof appointmentReminders.$inferSelect;
 export type InsertAppointmentReminder = z.infer<typeof insertAppointmentReminderSchema>;
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 
 // Login schema
 export const loginSchema = z.object({
