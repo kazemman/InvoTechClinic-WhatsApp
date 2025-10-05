@@ -2180,15 +2180,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: `Created API key: ${name}`
       });
 
-      res.json({
+      const response = {
         id: newApiKey.id,
         name: newApiKey.name,
         key: apiKey,
         createdAt: newApiKey.createdAt
-      });
-    } catch (error) {
+      };
+
+      console.log('API Key created successfully:', { id: response.id, name: response.name, keyPreview: apiKey.substring(0, 10) + '...' });
+      return res.status(200).json(response);
+    } catch (error: any) {
       console.error('Error creating API key:', error);
-      res.status(500).json({ message: 'Failed to create API key' });
+      return res.status(500).json({ message: error.message || 'Failed to create API key' });
     }
   });
 
