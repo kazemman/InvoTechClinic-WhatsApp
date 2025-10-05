@@ -185,15 +185,17 @@ export default function Appointments() {
 
   const selectedDoctor = form.watch('doctorId');
   
-  const { data: availableSlots, isLoading: slotsLoading } = useQuery({
+  const { data: slotsResponse, isLoading: slotsLoading } = useQuery({
     queryKey: ['/api/appointments/available-slots', selectedDoctor, appointmentDateOnly],
     queryFn: async () => {
-      if (!selectedDoctor || !appointmentDateOnly) return [];
+      if (!selectedDoctor || !appointmentDateOnly) return null;
       const res = await apiRequest('GET', `/api/appointments/available-slots?doctorId=${selectedDoctor}&date=${appointmentDateOnly}`);
       return res.json();
     },
     enabled: !!selectedDoctor && !!appointmentDateOnly,
   });
+
+  const availableSlots = slotsResponse?.availableSlots || [];
 
   // Get weekly reminder candidates (appointments in 7 days)
   const { data: weeklyReminderCandidates, isLoading: loadingWeeklyReminders } = useQuery({
