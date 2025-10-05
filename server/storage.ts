@@ -42,6 +42,7 @@ export interface IStorage {
   checkAppointmentConflict(doctorId: string, appointmentDate: Date, excludeId?: string): Promise<boolean>;
   getAppointmentsBetweenDates(startDate: Date, endDate: Date): Promise<any[]>;
   getAppointmentWithDetails(id: string): Promise<any | undefined>;
+  getAvailableAppointmentSlots(doctorId: string, date: Date): Promise<string[]>;
 
   // Check-in methods
   createCheckIn(checkIn: InsertCheckIn): Promise<CheckIn>;
@@ -425,6 +426,91 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(users, eq(appointments.doctorId, users.id))
     .where(eq(appointments.id, id));
     return appointment || undefined;
+  }
+
+  async getAvailableAppointmentSlots(doctorId: string, date: Date): Promise<string[]> {
+    const dayOfWeek = date.getDay();
+    
+    if (dayOfWeek === 0) {
+      return [];
+    }
+    
+    if (this.isSouthAfricanPublicHoliday(date)) {
+      return [];
+    }
+    
+    const slots: string[] = [];
+    let startHour = 8;
+    let endHour = 17;
+    
+    if (dayOfWeek === 6) {
+      endHour = 13;
+    }
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (let minute of [0, 30]) {
+        const slotTime = new Date(date);
+        slotTime.setHours(hour, minute, 0, 0);
+        
+        const hasConflict = await this.checkAppointmentConflict(doctorId, slotTime);
+        if (!hasConflict) {
+          const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          slots.push(timeString);
+        }
+      }
+    }
+    
+    return slots;
+  }
+
+  private getSouthAfricanPublicHolidays(year: number): Date[] {
+    const holidays = [
+      new Date(year, 0, 1),
+      new Date(year, 2, 21),
+      new Date(year, 3, 27),
+      new Date(year, 4, 1),
+      new Date(year, 5, 16),
+      new Date(year, 7, 9),
+      new Date(year, 8, 24),
+      new Date(year, 11, 16),
+      new Date(year, 11, 25),
+      new Date(year, 11, 26),
+    ];
+    
+    const easterSunday = this.getEasterSunday(year);
+    holidays.push(
+      new Date(easterSunday.getTime() - 2 * 24 * 60 * 60 * 1000),
+      new Date(easterSunday.getTime() + 1 * 24 * 60 * 60 * 1000)
+    );
+    
+    return holidays;
+  }
+
+  private getEasterSunday(year: number): Date {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month, day);
+  }
+
+  private isSouthAfricanPublicHoliday(date: Date): boolean {
+    const holidays = this.getSouthAfricanPublicHolidays(date.getFullYear());
+    return holidays.some(holiday => 
+      holiday.getFullYear() === date.getFullYear() &&
+      holiday.getMonth() === date.getMonth() &&
+      holiday.getDate() === date.getDate()
+    );
   }
 
   // Check-in methods

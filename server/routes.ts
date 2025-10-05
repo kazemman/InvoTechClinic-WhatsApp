@@ -593,6 +593,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/appointments/available-slots', authenticateToken, async (req, res) => {
+    try {
+      const { doctorId, date } = req.query;
+      
+      if (!doctorId || !date) {
+        return res.status(400).json({ 
+          message: 'doctorId and date are required query parameters' 
+        });
+      }
+      
+      const appointmentDate = new Date(date as string);
+      
+      if (isNaN(appointmentDate.getTime())) {
+        return res.status(400).json({ 
+          message: 'Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)' 
+        });
+      }
+      
+      const availableSlots = await storage.getAvailableAppointmentSlots(
+        doctorId as string, 
+        appointmentDate
+      );
+      
+      res.json({
+        date: appointmentDate.toISOString().split('T')[0],
+        doctorId: doctorId,
+        availableSlots: availableSlots,
+        totalSlots: availableSlots.length
+      });
+    } catch (error) {
+      console.error('Failed to fetch available slots:', error);
+      res.status(500).json({ message: 'Failed to fetch available appointment slots' });
+    }
+  });
+
   // Appointment reminder routes
   app.get('/api/appointments/reminders/weekly', authenticateToken, requireRole(['admin', 'staff']), async (req: AuthenticatedRequest, res) => {
     try {
