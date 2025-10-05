@@ -223,13 +223,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAppointment(insertAppointment: InsertAppointment): Promise<Appointment> {
-    const [appointment] = await db.insert(appointments).values(insertAppointment).returning();
+    const normalizedAppointment = {
+      ...insertAppointment,
+      appointmentDate: this.normalizeAppointmentDate(insertAppointment.appointmentDate)
+    };
+    const [appointment] = await db.insert(appointments).values(normalizedAppointment).returning();
     return appointment;
   }
 
   async updateAppointment(id: string, appointment: Partial<InsertAppointment>): Promise<Appointment> {
-    const [updatedAppointment] = await db.update(appointments).set(appointment).where(eq(appointments.id, id)).returning();
+    const updateData = appointment.appointmentDate 
+      ? { ...appointment, appointmentDate: this.normalizeAppointmentDate(appointment.appointmentDate) }
+      : appointment;
+    const [updatedAppointment] = await db.update(appointments).set(updateData).where(eq(appointments.id, id)).returning();
     return updatedAppointment;
+  }
+
+  private normalizeAppointmentDate(date: Date): Date {
+    const normalized = new Date(date);
+    normalized.setSeconds(0, 0);
+    return normalized;
   }
 
   async getAppointmentsByDate(date: Date): Promise<Appointment[]> {
