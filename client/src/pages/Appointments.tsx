@@ -87,7 +87,7 @@ export default function Appointments() {
     enabled: patientSearchQuery.length > 2,
   });
 
-  const { data: doctors } = useQuery({
+  const { data: doctors, error: doctorsError, isLoading: doctorsLoading } = useQuery({
     queryKey: ['/api/users'],
     queryFn: async () => {
       const res = await apiRequest('GET', '/api/users');
@@ -447,16 +447,16 @@ export default function Appointments() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Doctor *</FormLabel>
+                      {doctorsLoading && <p className="text-sm text-muted-foreground">Loading doctors...</p>}
+                      {doctorsError && <p className="text-sm text-red-500">Error loading doctors: {(doctorsError as Error).message}</p>}
                       <Select 
-                        onValueChange={(value) => {
-                          console.log('🔍 Doctor selected:', value);
-                          field.onChange(value);
-                        }} 
+                        onValueChange={field.onChange} 
                         value={field.value}
+                        disabled={doctorsLoading || !!doctorsError}
                       >
                         <FormControl>
                           <SelectTrigger data-testid="select-doctor">
-                            <SelectValue placeholder="Select doctor" />
+                            <SelectValue placeholder={doctorsLoading ? "Loading..." : "Select doctor"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>

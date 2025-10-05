@@ -81,7 +81,7 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-The application will be available at `http://your-vps-ip:5000`
+The application will be available at `http://your-vps-ip:50002`
 
 ### 6. Create Initial Admin User
 
@@ -89,7 +89,7 @@ You'll need to create your first admin user directly in the database or through 
 
 ```bash
 # Access PostgreSQL (replace with your actual PGUSER and PGDATABASE from .env)
-docker-compose exec postgres psql -U <your-pguser> -d <your-pgdatabase>
+docker-compose exec postgres psql -U <clinicadmin> -d <congokitoko1960>
 
 # Check if users table exists
 \dt
