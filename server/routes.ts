@@ -10,11 +10,11 @@ import {
   insertAppointmentSchema, insertCheckInSchema, insertQueueSchema,
   insertConsultationSchema, insertPaymentSchema, insertActivityLogSchema,
   insertMedicalAttachmentSchema, insertMedicalAidClaimSchema, updateMedicalAidClaimSchema,
-  insertBirthdayWishSchema, insertAppointmentReminderSchema,
+  insertBirthdayWishSchema, insertAppointmentReminderSchema, insertApiKeySchema,
   type User
 } from "@shared/schema";
 import { z } from "zod";
-import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, AuthenticatedRequest } from "./auth";
+import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, generateApiKey, hashApiKey, AuthenticatedRequest } from "./auth";
 
 // Configure multer for patient photo uploads
 const upload = multer({
@@ -2152,6 +2152,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         message: 'Failed to fetch doctors'
       });
+    }
+  });
+
+  // API Key routes
+  app.post('/api/api-keys', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const { name } = z.object({ name: z.string().min(1) }).parse(req.body);
+      
+      const apiKey = generateApiKey();
+      const keyHash = hashApiKey(apiKey);
+
+      const newApiKey = await storage.createApiKey({
+        userId: req.user.id,
+        name,
+        keyHash,
+        isActive: true
+      });
+
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: 'create_api_key',
+        details: `Created API key: ${name}`
+      });
+
+      res.json({
+        id: newApiKey.id,
+        name: newApiKey.name,
+        key: apiKey,
+        createdAt: newApiKey.createdAt
+      });
+    } catch (error) {
+      console.error('Error creating API key:', error);
+      res.status(500).json({ message: 'Failed to create API key' });
+    }
+  });
+
+  app.get('/api/api-keys', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const apiKeys = await storage.getApiKeysByUser(req.user.id);
+      
+      res.json(apiKeys.map(key => ({
+        id: key.id,
+        name: key.name,
+        lastUsedAt: key.lastUsedAt,
+        isActive: key.isActive,
+        createdAt: key.createdAt
+      })));
+    } catch (error) {
+      console.error('Error fetching API keys:', error);
+      res.status(500).json({ message: 'Failed to fetch API keys' });
+    }
+  });
+
+  app.delete('/api/api-keys/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const { id } = req.params;
+      
+      const apiKeys = await storage.getApiKeysByUser(req.user.id);
+      const apiKey = apiKeys.find(key => key.id === id);
+      
+      if (!apiKey) {
+        return res.status(404).json({ message: 'API key not found' });
+      }
+
+      await storage.revokeApiKey(id);
+
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: 'revoke_api_key',
+        details: `Revoked API key: ${apiKey.name}`
+      });
+
+      res.json({ message: 'API key revoked successfully' });
+    } catch (error) {
+      console.error('Error revoking API key:', error);
+      res.status(500).json({ message: 'Failed to revoke API key' });
     }
   });
 
