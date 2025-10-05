@@ -456,10 +456,19 @@ export class DatabaseStorage implements IStorage {
       endHour = 13;
     }
     
+    const SOUTH_AFRICA_OFFSET = 2;
+    
     for (let hour = startHour; hour < endHour; hour++) {
       for (let minute of [0, 30]) {
-        const slotTime = new Date(date);
-        slotTime.setHours(hour, minute, 0, 0);
+        const slotTime = new Date(Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate(),
+          hour - SOUTH_AFRICA_OFFSET,
+          minute,
+          0,
+          0
+        ));
         
         const hasConflict = await this.checkAppointmentConflict(doctorId, slotTime);
         if (!hasConflict) {
