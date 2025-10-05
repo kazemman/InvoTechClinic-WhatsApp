@@ -112,6 +112,8 @@ export default function Appointments() {
   const [weeklyReminderMessage, setWeeklyReminderMessage] = useState("Hello [name and Lastname]! ⏰ Friendly reminder: You have an upcoming appointment in one week on Tuesday at 13:00 with Dr [name]. You can respond if you wish to reschedule.");
   const [dailyReminderMessage, setDailyReminderMessage] = useState("Hello [name and Last name] ⏰ Friendly reminder: You have an upcoming appointment tomorrow at [time]with Dr [name]. Please arrive 15 minutes before so you can be attended to on time.");
   const [dateTimeError, setDateTimeError] = useState<string | null>(null);
+  const [appointmentDateOnly, setAppointmentDateOnly] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -181,6 +183,18 @@ export default function Appointments() {
     },
   });
 
+  const selectedDoctor = form.watch('doctorId');
+  
+  const { data: availableSlots, isLoading: slotsLoading } = useQuery({
+    queryKey: ['/api/appointments/available-slots', selectedDoctor, appointmentDateOnly],
+    queryFn: async () => {
+      if (!selectedDoctor || !appointmentDateOnly) return [];
+      const res = await apiRequest('GET', `/api/appointments/available-slots?doctorId=${selectedDoctor}&date=${appointmentDateOnly}`);
+      return res.json();
+    },
+    enabled: !!selectedDoctor && !!appointmentDateOnly,
+  });
+
   // Get weekly reminder candidates (appointments in 7 days)
   const { data: weeklyReminderCandidates, isLoading: loadingWeeklyReminders } = useQuery({
     queryKey: ['api', 'appointments', 'reminders', 'weekly'],
@@ -241,8 +255,12 @@ export default function Appointments() {
       setSelectedPatient(null);
       setPatientSearchQuery('');
       setShowPatientResults(false);
+      // Clear time slot selection
+      setSelectedTimeSlot('');
+      setAppointmentDateOnly(new Date().toISOString().split('T')[0]);
       queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments/available-slots'] });
     },
     onError: (error) => {
       toast({
@@ -567,52 +585,84 @@ export default function Appointments() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="appointmentDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date & Time *</FormLabel>
-                      <FormControl>
-                        <div className="space-y-2">
-                          <Input
-                            {...field}
-                            type="datetime-local"
-                            step="1800"
-                            value={field.value instanceof Date ? 
-                              dateToLocalDateTimeString(field.value) : ''}
-                            onChange={(e) => {
-                              const selectedDate = localDateTimeStringToDate(e.target.value);
-                              const roundedDate = roundToNearest30Minutes(selectedDate);
-                              
-                              const validation = isValidAppointmentDateTime(roundedDate);
-                              if (!validation.valid) {
-                                setDateTimeError(validation.error || null);
-                              } else {
-                                setDateTimeError(null);
-                              }
-                              
-                              field.onChange(roundedDate);
-                            }}
-                            data-testid="input-appointment-datetime"
-                          />
-                          {dateTimeError && (
-                            <p className="text-sm text-red-500 font-medium">
-                              {dateTimeError}
-                            </p>
-                          )}
-                          <p className="text-sm text-muted-foreground">
-                            Monday-Friday: 8:00 AM - 5:00 PM • Saturday: 8:00 AM - 1:00 PM
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Appointments scheduled in 30-minute intervals. Closed on Sundays and public holidays.
-                          </p>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="space-y-4">
+                  <FormItem>
+                    <FormLabel>Appointment Date *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        value={appointmentDateOnly}
+                        onChange={(e) => {
+                          setAppointmentDateOnly(e.target.value);
+                          setSelectedTimeSlot('');
+                        }}
+                        data-testid="input-appointment-date"
+                      />
+                    </FormControl>
+                    <p className="text-sm text-muted-foreground">
+                      Monday-Friday: 8:00 AM - 5:00 PM • Saturday: 8:00 AM - 1:00 PM
+                    </p>
+                  </FormItem>
+
+                  <FormField
+                    control={form.control}
+                    name="appointmentDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Available Time Slots *</FormLabel>
+                        <FormControl>
+                          <div className="space-y-2">
+                            {!selectedDoctor && (
+                              <p className="text-sm text-muted-foreground">
+                                Please select a doctor first to see available time slots
+                              </p>
+                            )}
+                            {selectedDoctor && slotsLoading && (
+                              <p className="text-sm text-muted-foreground">
+                                Loading available slots...
+                              </p>
+                            )}
+                            {selectedDoctor && !slotsLoading && availableSlots && availableSlots.length === 0 && (
+                              <p className="text-sm text-yellow-600 dark:text-yellow-500">
+                                No available slots for this date. Please select another date.
+                              </p>
+                            )}
+                            {selectedDoctor && !slotsLoading && availableSlots && availableSlots.length > 0 && (
+                              <div className="grid grid-cols-3 gap-2 max-h-60 overflow-y-auto p-2 border rounded-lg">
+                                {availableSlots.map((slot: string) => (
+                                  <Button
+                                    key={slot}
+                                    type="button"
+                                    variant={selectedTimeSlot === slot ? "default" : "outline"}
+                                    size="sm"
+                                    className="h-9"
+                                    onClick={() => {
+                                      setSelectedTimeSlot(slot);
+                                      const [hours, minutes] = slot.split(':');
+                                      const appointmentDateTime = new Date(appointmentDateOnly);
+                                      appointmentDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                                      field.onChange(appointmentDateTime);
+                                      setDateTimeError(null);
+                                    }}
+                                    data-testid={`button-timeslot-${slot}`}
+                                  >
+                                    {slot}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                            {dateTimeError && (
+                              <p className="text-sm text-red-500 font-medium">
+                                {dateTimeError}
+                              </p>
+                            )}
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}
