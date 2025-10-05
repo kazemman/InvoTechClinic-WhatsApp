@@ -17,6 +17,90 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar, Clock, User, CalendarPlus, Search, X, Send, Loader2 } from 'lucide-react';
 
+function getSouthAfricanPublicHolidays(year: number): Date[] {
+  const holidays = [
+    new Date(year, 0, 1),
+    new Date(year, 2, 21),
+    new Date(year, 3, 27),
+    new Date(year, 4, 1),
+    new Date(year, 5, 16),
+    new Date(year, 7, 9),
+    new Date(year, 8, 24),
+    new Date(year, 11, 16),
+    new Date(year, 11, 25),
+    new Date(year, 11, 26),
+  ];
+  
+  const easterSunday = getEasterSunday(year);
+  holidays.push(
+    new Date(easterSunday.getTime() - 2 * 24 * 60 * 60 * 1000),
+    new Date(easterSunday.getTime() + 1 * 24 * 60 * 60 * 1000)
+  );
+  
+  return holidays;
+}
+
+function getEasterSunday(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month, day);
+}
+
+function isSouthAfricanPublicHoliday(date: Date): boolean {
+  const holidays = getSouthAfricanPublicHolidays(date.getFullYear());
+  return holidays.some(holiday => 
+    holiday.getFullYear() === date.getFullYear() &&
+    holiday.getMonth() === date.getMonth() &&
+    holiday.getDate() === date.getDate()
+  );
+}
+
+function isValidAppointmentDateTime(date: Date): { valid: boolean; error?: string } {
+  const dayOfWeek = date.getDay();
+  
+  if (dayOfWeek === 0) {
+    return { valid: false, error: 'Appointments are not available on Sundays' };
+  }
+  
+  if (isSouthAfricanPublicHoliday(date)) {
+    return { valid: false, error: 'Appointments are not available on public holidays' };
+  }
+  
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const timeInMinutes = hours * 60 + minutes;
+  
+  if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+    const openTime = 8 * 60;
+    const closeTime = 17 * 60;
+    
+    if (timeInMinutes < openTime || timeInMinutes >= closeTime) {
+      return { valid: false, error: 'Monday-Friday appointments are from 8:00 AM to 5:00 PM' };
+    }
+  } else if (dayOfWeek === 6) {
+    const openTime = 8 * 60;
+    const closeTime = 13 * 60;
+    
+    if (timeInMinutes < openTime || timeInMinutes >= closeTime) {
+      return { valid: false, error: 'Saturday appointments are from 8:00 AM to 1:00 PM' };
+    }
+  }
+  
+  return { valid: true };
+}
+
 export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
@@ -27,6 +111,7 @@ export default function Appointments() {
   const [processingSendId, setProcessingSendId] = useState<string | null>(null);
   const [weeklyReminderMessage, setWeeklyReminderMessage] = useState("Hello [name and Lastname]! ⏰ Friendly reminder: You have an upcoming appointment in one week on Tuesday at 13:00 with Dr [name]. You can respond if you wish to reschedule.");
   const [dailyReminderMessage, setDailyReminderMessage] = useState("Hello [name and Last name] ⏰ Friendly reminder: You have an upcoming appointment tomorrow at [time]with Dr [name]. Please arrive 15 minutes before so you can be attended to on time.");
+  const [dateTimeError, setDateTimeError] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -234,6 +319,16 @@ export default function Appointments() {
       toast({
         title: 'Missing Appointment Type',
         description: 'Please select an appointment type before booking.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const validation = isValidAppointmentDateTime(data.appointmentDate);
+    if (!validation.valid) {
+      toast({
+        title: 'Invalid Date/Time',
+        description: validation.error || 'Please select a valid appointment date and time.',
         variant: 'destructive',
       });
       return;
@@ -489,12 +584,28 @@ export default function Appointments() {
                             onChange={(e) => {
                               const selectedDate = localDateTimeStringToDate(e.target.value);
                               const roundedDate = roundToNearest30Minutes(selectedDate);
+                              
+                              const validation = isValidAppointmentDateTime(roundedDate);
+                              if (!validation.valid) {
+                                setDateTimeError(validation.error || null);
+                              } else {
+                                setDateTimeError(null);
+                              }
+                              
                               field.onChange(roundedDate);
                             }}
                             data-testid="input-appointment-datetime"
                           />
+                          {dateTimeError && (
+                            <p className="text-sm text-red-500 font-medium">
+                              {dateTimeError}
+                            </p>
+                          )}
                           <p className="text-sm text-muted-foreground">
-                            Appointments are scheduled in 30-minute intervals (e.g., 09:00, 09:30, 10:00)
+                            Monday-Friday: 8:00 AM - 5:00 PM • Saturday: 8:00 AM - 1:00 PM
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Appointments scheduled in 30-minute intervals. Closed on Sundays and public holidays.
                           </p>
                         </div>
                       </FormControl>
@@ -557,7 +668,7 @@ export default function Appointments() {
                 <Button 
                   type="submit" 
                   className="w-full" 
-                  disabled={createAppointmentMutation.isPending}
+                  disabled={createAppointmentMutation.isPending || !!dateTimeError}
                   data-testid="button-schedule-appointment"
                 >
                   {createAppointmentMutation.isPending ? 'Scheduling...' : 'Schedule Appointment'}
