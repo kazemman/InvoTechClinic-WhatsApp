@@ -43,6 +43,7 @@ export interface IStorage {
   getAppointmentsBetweenDates(startDate: Date, endDate: Date): Promise<any[]>;
   getAppointmentWithDetails(id: string): Promise<any | undefined>;
   getAvailableAppointmentSlots(doctorId: string, date: Date): Promise<string[]>;
+  getAvailableAppointmentSlotsForAllDoctors(date: Date): Promise<Array<{doctorId: string, doctorName: string, availableSlots: string[]}>>;
 
   // Check-in methods
   createCheckIn(checkIn: InsertCheckIn): Promise<CheckIn>;
@@ -511,6 +512,23 @@ export class DatabaseStorage implements IStorage {
       holiday.getMonth() === date.getMonth() &&
       holiday.getDate() === date.getDate()
     );
+  }
+
+  async getAvailableAppointmentSlotsForAllDoctors(date: Date): Promise<Array<{doctorId: string, doctorName: string, availableSlots: string[]}>> {
+    const doctors = await db.select().from(users).where(eq(users.role, 'doctor'));
+    
+    const results = [];
+    
+    for (const doctor of doctors) {
+      const availableSlots = await this.getAvailableAppointmentSlots(doctor.id, date);
+      results.push({
+        doctorId: doctor.id,
+        doctorName: doctor.name,
+        availableSlots: availableSlots
+      });
+    }
+    
+    return results;
   }
 
   // Check-in methods
