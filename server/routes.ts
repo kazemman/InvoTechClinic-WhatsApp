@@ -630,25 +630,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/appointments/available-slots/all', authenticateToken, async (req, res) => {
     try {
+      console.log('📍 /all endpoint called with query:', req.query);
       const { date } = req.query;
       
       if (!date) {
+        console.log('❌ Missing date parameter');
         return res.status(400).json({ 
           message: 'date is required query parameter' 
         });
       }
       
       const appointmentDate = new Date(date as string);
+      console.log('📅 Parsed date:', appointmentDate);
       
       if (isNaN(appointmentDate.getTime())) {
+        console.log('❌ Invalid date format');
         return res.status(400).json({ 
           message: 'Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)' 
         });
       }
       
+      console.log('🔍 Fetching doctors with available slots...');
       const doctorsWithSlots = await storage.getAvailableAppointmentSlotsForAllDoctors(appointmentDate);
+      console.log('✅ Doctors fetched:', doctorsWithSlots.length);
       
-      res.json({
+      const response = {
         date: appointmentDate.toISOString().split('T')[0],
         doctors: doctorsWithSlots.map(doc => ({
           doctorId: doc.doctorId,
@@ -657,10 +663,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalSlots: doc.availableSlots.length
         })),
         totalDoctors: doctorsWithSlots.length
-      });
-    } catch (error) {
-      console.error('Failed to fetch available slots for all doctors:', error);
-      res.status(500).json({ message: 'Failed to fetch available appointment slots for all doctors' });
+      };
+      
+      console.log('📤 Sending response:', JSON.stringify(response).substring(0, 200));
+      res.json(response);
+    } catch (error: any) {
+      console.error('💥 ERROR in /all endpoint:', error);
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ message: 'Failed to fetch available appointment slots for all doctors', error: error.message });
     }
   });
 
