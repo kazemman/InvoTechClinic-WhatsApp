@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { storage } from './storage';
 import { User } from '@shared/schema';
@@ -31,6 +32,15 @@ export function verifyToken(token: string): { userId: string } | null {
   }
 }
 
+export function generateApiKey(): string {
+  const randomBytes = crypto.randomBytes(32);
+  return `sk_${randomBytes.toString('hex')}`;
+}
+
+export function hashApiKey(apiKey: string): string {
+  return crypto.createHash('sha256').update(apiKey).digest('hex');
+}
+
 export async function authenticateToken(
   req: AuthenticatedRequest,
   res: Response,
@@ -43,19 +53,37 @@ export async function authenticateToken(
     return res.status(401).json({ message: 'Access token required' });
   }
 
-  const decoded = verifyToken(token);
-  if (!decoded) {
-    return res.status(403).json({ message: 'Invalid token' });
-  }
-
   try {
-    const user = await storage.getUser(decoded.userId);
-    if (!user || !user.isActive) {
-      return res.status(403).json({ message: 'User not found or inactive' });
-    }
+    if (token.startsWith('sk_')) {
+      const keyHash = hashApiKey(token);
+      const apiKey = await storage.getApiKeyByHash(keyHash);
+      
+      if (!apiKey) {
+        return res.status(403).json({ message: 'Invalid API key' });
+      }
 
-    req.user = user;
-    next();
+      const user = await storage.getUser(apiKey.userId);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User not found or inactive' });
+      }
+
+      await storage.updateApiKeyLastUsed(apiKey.id);
+      req.user = user;
+      next();
+    } else {
+      const decoded = verifyToken(token);
+      if (!decoded) {
+        return res.status(403).json({ message: 'Invalid token' });
+      }
+
+      const user = await storage.getUser(decoded.userId);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User not found or inactive' });
+      }
+
+      req.user = user;
+      next();
+    }
   } catch (error) {
     return res.status(500).json({ message: 'Internal server error' });
   }
