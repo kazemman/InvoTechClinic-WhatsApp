@@ -1,11 +1,12 @@
 import { 
-  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes, appointmentReminders,
+  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes, appointmentReminders, apiKeys,
   type User, type InsertUser, type Patient, type InsertPatient, 
   type Appointment, type InsertAppointment, type CheckIn, type InsertCheckIn,
   type Queue, type InsertQueue, type Consultation, type InsertConsultation,
   type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog,
   type MedicalAttachment, type InsertMedicalAttachment, type MedicalAidClaim, type InsertMedicalAidClaim,
-  type BirthdayWish, type InsertBirthdayWish, type AppointmentReminder, type InsertAppointmentReminder
+  type BirthdayWish, type InsertBirthdayWish, type AppointmentReminder, type InsertAppointmentReminder,
+  type ApiKey, type InsertApiKey
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, lt, sql, isNotNull, asc, inArray } from "drizzle-orm";
@@ -155,6 +156,13 @@ export interface IStorage {
   getBirthdayWishesByDate(date: Date): Promise<BirthdayWish[]>;
   getTodaysBirthdayPatients(): Promise<Patient[]>;
   cleanupOldBirthdayWishes(): Promise<{ deletedCount: number }>;
+
+  // API key methods
+  createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
+  getApiKeysByUser(userId: string): Promise<ApiKey[]>;
+  getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined>;
+  revokeApiKey(id: string): Promise<void>;
+  updateApiKeyLastUsed(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1253,6 +1261,45 @@ export class DatabaseStorage implements IStorage {
     });
     
     return result;
+  }
+
+  // API key methods
+  async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
+    const [result] = await db.insert(apiKeys).values(apiKey).returning();
+    return result;
+  }
+
+  async getApiKeysByUser(userId: string): Promise<ApiKey[]> {
+    return await db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.userId, userId))
+      .orderBy(desc(apiKeys.createdAt));
+  }
+
+  async getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined> {
+    const [result] = await db
+      .select()
+      .from(apiKeys)
+      .where(and(
+        eq(apiKeys.keyHash, keyHash),
+        eq(apiKeys.isActive, true)
+      ));
+    return result;
+  }
+
+  async revokeApiKey(id: string): Promise<void> {
+    await db
+      .update(apiKeys)
+      .set({ isActive: false })
+      .where(eq(apiKeys.id, id));
+  }
+
+  async updateApiKeyLastUsed(id: string): Promise<void> {
+    await db
+      .update(apiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(apiKeys.id, id));
   }
 }
 
