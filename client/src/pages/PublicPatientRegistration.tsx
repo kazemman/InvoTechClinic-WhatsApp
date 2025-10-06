@@ -136,6 +136,20 @@ export default function PublicPatientRegistration() {
 
       if (result.success) {
         form.reset();
+        
+        // Close the window after a brief delay to show success message
+        setTimeout(() => {
+          window.close();
+          
+          // If window.close() didn't work (browser security), show a message
+          setTimeout(() => {
+            setSubmitResult({
+              success: true,
+              message: "Registration complete! You may now close this window.",
+              patientId: result.patientId,
+            });
+          }, 500);
+        }, 2000);
       }
     } catch (error) {
       setSubmitResult({
@@ -245,6 +259,8 @@ export default function PublicPatientRegistration() {
               </Alert>
             )}
 
+            {/* Hide form after successful registration */}
+            {submitResult?.success ? null : (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {/* Photo Upload */}
@@ -530,6 +546,7 @@ export default function PublicPatientRegistration() {
                 </Button>
               </form>
             </Form>
+            )}
           </CardContent>
         </Card>
       </div>

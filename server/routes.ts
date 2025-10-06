@@ -2098,11 +2098,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }, async (req, res) => {
     try {
-      console.log('==== PUBLIC REGISTRATION DEBUG ====');
-      console.log('Body keys:', Object.keys(req.body));
-      console.log('Body values:', JSON.stringify(req.body, null, 2));
-      console.log('Has file:', !!req.file);
-      
       // When using FormData, all values come as strings, so we validate with string schema
       const bodySchema = z.object({
         token: z.string().min(1, 'Registration token is required'),
