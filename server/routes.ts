@@ -23,6 +23,11 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
+    // If no file is provided, allow the request to proceed
+    if (!file) {
+      return cb(null, false);
+    }
+    
     const allowedTypes = /jpeg|jpg|png|gif/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
@@ -2077,8 +2082,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public patient registration endpoint with photo upload
-  app.post('/api/public/patient/register', upload.single('photo'), async (req, res) => {
+  // Public patient registration endpoint with photo upload  
+  app.post('/api/public/patient/register', (req, res, next) => {
+    upload.single('photo')(req, res, (err) => {
+      // If multer error and it's about file type, but photo is optional, continue without photo
+      if (err && err.message === 'Only image files are allowed') {
+        console.log('Photo upload skipped - invalid file type or no file provided');
+        req.file = undefined;
+        return next();
+      }
+      if (err) {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       console.log('==== PUBLIC REGISTRATION DEBUG ====');
       console.log('Body keys:', Object.keys(req.body));
