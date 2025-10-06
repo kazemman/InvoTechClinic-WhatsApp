@@ -308,12 +308,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all patient contact information for announcements (API key protected)
   app.get('/api/patients/contacts', async (req, res) => {
     try {
-      const apiKey = req.headers['x-api-key'] as string;
+      // Accept API key from either x-api-key header or Authorization header (for n8n compatibility)
+      let apiKey = req.headers['x-api-key'] as string;
+      
+      // If not in x-api-key, check Authorization header
+      if (!apiKey) {
+        const authHeader = req.headers['authorization'];
+        if (authHeader) {
+          // Extract token from "Bearer sk_..." format
+          const token = authHeader.split(' ')[1];
+          if (token && token.startsWith('sk_')) {
+            apiKey = token;
+          }
+        }
+      }
       
       if (!apiKey) {
         return res.status(401).json({ 
           success: false,
-          message: 'API key is required' 
+          message: 'API key is required. Provide it via x-api-key header or Authorization: Bearer header' 
         });
       }
 
