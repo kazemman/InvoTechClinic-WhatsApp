@@ -11,6 +11,7 @@ import {
   insertConsultationSchema, insertPaymentSchema, insertActivityLogSchema,
   insertMedicalAttachmentSchema, insertMedicalAidClaimSchema, updateMedicalAidClaimSchema,
   insertBirthdayWishSchema, insertAppointmentReminderSchema, insertApiKeySchema,
+  insertDoctorUnavailabilitySchema,
   type User
 } from "@shared/schema";
 import { z } from "zod";
@@ -2484,6 +2485,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error revoking API key:', error);
       res.status(500).json({ message: 'Failed to revoke API key' });
+    }
+  });
+
+  // Doctor Schedule/Unavailability routes
+  app.get('/api/doctor-unavailability/:doctorId', authenticateToken, async (req, res) => {
+    try {
+      const { doctorId } = req.params;
+      const { date } = req.query;
+      
+      if (!date) {
+        return res.status(400).json({ message: 'Date parameter is required' });
+      }
+      
+      const queryDate = new Date(date as string);
+      const unavailability = await storage.getDoctorUnavailabilityByDate(doctorId, queryDate);
+      res.json(unavailability);
+    } catch (error) {
+      console.error('Error fetching doctor unavailability:', error);
+      res.status(500).json({ message: 'Failed to fetch doctor unavailability' });
+    }
+  });
+
+  app.post('/api/doctor-unavailability', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const unavailabilityData = insertDoctorUnavailabilitySchema.parse({
+        ...req.body,
+        createdBy: req.user.id
+      });
+
+      const unavailability = await storage.createDoctorUnavailability(unavailabilityData);
+
+      // Log activity
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: 'create_doctor_unavailability',
+        details: `Blocked ${unavailabilityData.type === 'full_day' ? 'full day' : 'time slot'} for doctor ${unavailabilityData.doctorId}`
+      });
+
+      res.status(201).json(unavailability);
+    } catch (error) {
+      console.error('Error creating doctor unavailability:', error);
+      res.status(400).json({ message: 'Failed to create doctor unavailability' });
+    }
+  });
+
+  app.delete('/api/doctor-unavailability/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const { id } = req.params;
+      await storage.deleteDoctorUnavailability(id);
+
+      // Log activity
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: 'delete_doctor_unavailability',
+        details: `Removed unavailability block ${id}`
+      });
+
+      res.json({ message: 'Unavailability block removed successfully' });
+    } catch (error) {
+      console.error('Error deleting doctor unavailability:', error);
+      res.status(500).json({ message: 'Failed to delete unavailability' });
     }
   });
 

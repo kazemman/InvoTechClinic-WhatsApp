@@ -1,12 +1,13 @@
 import { 
-  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes, appointmentReminders, apiKeys, registrationTokens,
+  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes, appointmentReminders, apiKeys, registrationTokens, doctorUnavailability,
   type User, type InsertUser, type Patient, type InsertPatient, 
   type Appointment, type InsertAppointment, type CheckIn, type InsertCheckIn,
   type Queue, type InsertQueue, type Consultation, type InsertConsultation,
   type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog,
   type MedicalAttachment, type InsertMedicalAttachment, type MedicalAidClaim, type InsertMedicalAidClaim,
   type BirthdayWish, type InsertBirthdayWish, type AppointmentReminder, type InsertAppointmentReminder,
-  type ApiKey, type InsertApiKey, type RegistrationToken, type InsertRegistrationToken
+  type ApiKey, type InsertApiKey, type RegistrationToken, type InsertRegistrationToken,
+  type DoctorUnavailability, type InsertDoctorUnavailability
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, lt, sql, isNotNull, asc, inArray } from "drizzle-orm";
@@ -169,6 +170,12 @@ export interface IStorage {
   getRegistrationTokenByToken(token: string): Promise<RegistrationToken | undefined>;
   markRegistrationTokenUsed(token: string): Promise<void>;
   deleteExpiredRegistrationTokens(): Promise<void>;
+
+  // Doctor unavailability methods
+  createDoctorUnavailability(unavailability: InsertDoctorUnavailability): Promise<DoctorUnavailability>;
+  getDoctorUnavailabilityByDate(doctorId: string, date: Date): Promise<DoctorUnavailability[]>;
+  deleteDoctorUnavailability(id: string): Promise<void>;
+  checkDoctorAvailability(doctorId: string, appointmentDate: Date): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1342,6 +1349,90 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(registrationTokens)
       .where(lt(registrationTokens.expiresAt, new Date()));
+  }
+
+  // Doctor unavailability methods
+  async createDoctorUnavailability(unavailability: InsertDoctorUnavailability): Promise<DoctorUnavailability> {
+    const [result] = await db.insert(doctorUnavailability).values(unavailability).returning();
+    return result;
+  }
+
+  async getDoctorUnavailabilityByDate(doctorId: string, date: Date): Promise<DoctorUnavailability[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const results = await db
+      .select()
+      .from(doctorUnavailability)
+      .where(
+        and(
+          eq(doctorUnavailability.doctorId, doctorId),
+          gte(doctorUnavailability.date, startOfDay),
+          lte(doctorUnavailability.date, endOfDay)
+        )
+      );
+    return results;
+  }
+
+  async deleteDoctorUnavailability(id: string): Promise<void> {
+    await db.delete(doctorUnavailability).where(eq(doctorUnavailability.id, id));
+  }
+
+  async checkDoctorAvailability(doctorId: string, appointmentDate: Date): Promise<boolean> {
+    const startOfDay = new Date(appointmentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(appointmentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Get time string from appointment date
+    const appointmentTime = appointmentDate.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
+    });
+
+    // Check for full day unavailability
+    const fullDayBlock = await db
+      .select()
+      .from(doctorUnavailability)
+      .where(
+        and(
+          eq(doctorUnavailability.doctorId, doctorId),
+          gte(doctorUnavailability.date, startOfDay),
+          lte(doctorUnavailability.date, endOfDay),
+          eq(doctorUnavailability.type, 'full_day')
+        )
+      );
+
+    if (fullDayBlock.length > 0) {
+      return false; // Doctor unavailable for the entire day
+    }
+
+    // Check for specific time slot unavailability
+    const timeSlotBlocks = await db
+      .select()
+      .from(doctorUnavailability)
+      .where(
+        and(
+          eq(doctorUnavailability.doctorId, doctorId),
+          gte(doctorUnavailability.date, startOfDay),
+          lte(doctorUnavailability.date, endOfDay),
+          eq(doctorUnavailability.type, 'time_slot')
+        )
+      );
+
+    // Check if appointment time falls within any blocked time slot
+    for (const block of timeSlotBlocks) {
+      if (block.startTime && block.endTime) {
+        if (appointmentTime >= block.startTime && appointmentTime < block.endTime) {
+          return false; // Doctor unavailable for this specific time slot
+        }
+      }
+    }
+
+    return true; // Doctor is available
   }
 }
 
