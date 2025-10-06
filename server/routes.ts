@@ -78,11 +78,6 @@ const medicalUpload = multer({
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
-  // Health check endpoint for deployment
-  app.get('/', (req, res) => {
-    res.status(200).json({ status: 'ok', message: 'InvoTech Clinic Management System' });
-  });
-
   // WebSocket server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   

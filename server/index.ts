@@ -8,6 +8,11 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Health check endpoint - must be first for deployment
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'InvoTech Clinic Management System' });
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
