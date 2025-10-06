@@ -14,7 +14,7 @@ import {
   type User
 } from "@shared/schema";
 import { z } from "zod";
-import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, generateApiKey, hashApiKey, AuthenticatedRequest } from "./auth";
+import { authenticateToken, requireRole, generateToken, hashPassword, verifyPassword, generateApiKey, hashApiKey, generateRegistrationToken, AuthenticatedRequest } from "./auth";
 
 // Configure multer for patient photo uploads
 const upload = multer({
@@ -1974,11 +1974,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate registration link (protected - staff/admin only)
+  app.post('/api/generate-registration-link', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Generate a secure random token
+      const token = generateRegistrationToken();
+      
+      // Set expiration to 30 minutes from now
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      
+      // Store the token in database
+      await storage.createRegistrationToken({
+        token,
+        expiresAt,
+        usedAt: null
+      });
+      
+      // Clean up old expired tokens (best-effort)
+      storage.deleteExpiredRegistrationTokens().catch(err => 
+        console.error('Failed to clean up expired tokens:', err)
+      );
+      
+      // Get the base URL from environment or request
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : `${req.protocol}://${req.get('host')}`;
+      
+      const registrationUrl = `${baseUrl}/register?token=${token}`;
+      
+      // Log activity
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: 'generate_registration_link',
+        details: `Generated registration link (expires in 30 minutes)`
+      });
+      
+      res.json({
+        success: true,
+        token,
+        url: registrationUrl,
+        expiresAt: expiresAt.toISOString()
+      });
+    } catch (error) {
+      console.error('Error generating registration link:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to generate registration link' 
+      });
+    }
+  });
+
+  // Validate registration token (public)
+  app.get('/api/public/registration-token/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      if (!token) {
+        return res.status(400).json({
+          valid: false,
+          message: 'Token is required'
+        });
+      }
+      
+      const registrationToken = await storage.getRegistrationTokenByToken(token);
+      
+      if (!registrationToken) {
+        return res.status(404).json({
+          valid: false,
+          message: 'Invalid registration link. Please request a new one.'
+        });
+      }
+      
+      if (registrationToken.usedAt) {
+        return res.status(410).json({
+          valid: false,
+          message: 'This registration link has already been used.'
+        });
+      }
+      
+      if (new Date() > new Date(registrationToken.expiresAt)) {
+        return res.status(410).json({
+          valid: false,
+          message: 'This registration link has expired. Please request a new one.'
+        });
+      }
+      
+      res.json({
+        valid: true,
+        expiresAt: registrationToken.expiresAt
+      });
+    } catch (error) {
+      console.error('Error validating registration token:', error);
+      res.status(500).json({
+        valid: false,
+        message: 'Failed to validate registration link'
+      });
+    }
+  });
+
   // Public patient registration endpoint
   app.post('/api/public/patient/register', async (req, res) => {
     try {
-      // Validate request body
+      // Validate request body including token
       const bodySchema = z.object({
+        token: z.string().min(1, 'Registration token is required'),
         firstName: z.string().min(1, 'First name is required'),
         lastName: z.string().min(1, 'Last name is required'),
         phone: z.string().min(10, 'Valid phone number is required'),
@@ -2001,7 +2100,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const patientData = validationResult.data;
+      const { token, ...patientData } = validationResult.data;
+      
+      // Validate the registration token
+      const registrationToken = await storage.getRegistrationTokenByToken(token);
+      
+      if (!registrationToken) {
+        return res.status(404).json({
+          success: false,
+          message: 'Invalid registration link. Please request a new one.'
+        });
+      }
+      
+      if (registrationToken.usedAt) {
+        return res.status(410).json({
+          success: false,
+          message: 'This registration link has already been used.'
+        });
+      }
+      
+      if (new Date() > new Date(registrationToken.expiresAt)) {
+        return res.status(410).json({
+          success: false,
+          message: 'This registration link has expired. Please request a new one.'
+        });
+      }
 
       // Check if patient already exists by phone or ID number
       const existingPatient = await storage.getPatientByPhone(patientData.phone);
@@ -2018,6 +2141,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...patientData,
         dateOfBirth: new Date(patientData.dateOfBirth)
       });
+      
+      // Mark the registration token as used
+      await storage.markRegistrationTokenUsed(token);
 
       res.status(201).json({
         success: true,

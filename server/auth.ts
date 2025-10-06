@@ -41,6 +41,10 @@ export function hashApiKey(apiKey: string): string {
   return crypto.createHash('sha256').update(apiKey).digest('hex');
 }
 
+export function generateRegistrationToken(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
 export async function authenticateToken(
   req: AuthenticatedRequest,
   res: Response,
