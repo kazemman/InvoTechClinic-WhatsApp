@@ -1977,15 +1977,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate registration link (protected - staff/admin only)
   app.post('/api/generate-registration-link', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
+      const { idPassport } = req.body;
+      
       // Generate a secure random token
       const token = generateRegistrationToken();
       
       // Set expiration to 30 minutes from now
       const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
       
-      // Store the token in database
+      // Store the token in database with optional idPassport
       await storage.createRegistrationToken({
         token,
+        idPassport: idPassport || null,
         expiresAt,
         usedAt: null
       });
@@ -2006,14 +2009,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createActivityLog({
         userId: req.user!.id,
         action: 'generate_registration_link',
-        details: `Generated registration link (expires in 30 minutes)`
+        details: `Generated registration link${idPassport ? ` for ID/Passport: ${idPassport}` : ''} (expires in 30 minutes)`
       });
       
       res.json({
         success: true,
         token,
         url: registrationUrl,
-        expiresAt: expiresAt.toISOString()
+        expiresAt: expiresAt.toISOString(),
+        idPassport: idPassport || null
       });
     } catch (error) {
       console.error('Error generating registration link:', error);
@@ -2061,7 +2065,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         valid: true,
-        expiresAt: registrationToken.expiresAt
+        expiresAt: registrationToken.expiresAt,
+        idPassport: registrationToken.idPassport || null
       });
     } catch (error) {
       console.error('Error validating registration token:', error);

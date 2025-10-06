@@ -45,7 +45,12 @@ export default function PublicPatientRegistration() {
   const token = urlParams.get('token');
 
   // Validate token
-  const { data: tokenValidation, isLoading: isValidatingToken, error: tokenError } = useQuery({
+  const { data: tokenValidation, isLoading: isValidatingToken, error: tokenError } = useQuery<{
+    valid: boolean;
+    expiresAt?: string;
+    idPassport?: string | null;
+    message?: string;
+  }>({
     queryKey: ['/api/public/registration-token', token],
     enabled: !!token,
     retry: false,
@@ -67,6 +72,13 @@ export default function PublicPatientRegistration() {
       allergies: "",
     },
   });
+
+  // Pre-fill ID/passport if provided in token
+  useEffect(() => {
+    if (tokenValidation?.idPassport) {
+      form.setValue('idNumber', tokenValidation.idPassport);
+    }
+  }, [tokenValidation, form]);
 
   const onSubmit = async (data: PatientRegistrationForm) => {
     if (!token) {
@@ -336,11 +348,18 @@ export default function PublicPatientRegistration() {
                     name="idNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>ID Number *</FormLabel>
+                        <FormLabel>
+                          ID Number * 
+                          {tokenValidation?.idPassport && (
+                            <span className="ml-2 text-xs text-green-600 dark:text-green-400">(Pre-filled)</span>
+                          )}
+                        </FormLabel>
                         <FormControl>
                           <Input 
                             data-testid="input-idnumber" 
                             placeholder="Enter your ID number" 
+                            readOnly={!!tokenValidation?.idPassport}
+                            className={tokenValidation?.idPassport ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed" : ""}
                             {...field} 
                           />
                         </FormControl>

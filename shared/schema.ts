@@ -453,6 +453,7 @@ export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export const registrationTokens = pgTable("registration_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   token: text("token").notNull().unique(),
+  idPassport: text("id_passport"),
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
