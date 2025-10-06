@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, CheckCircle, UserPlus } from "lucide-react";
+import { AlertCircle, CheckCircle, UserPlus, Clock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 const patientRegistrationSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -30,12 +32,24 @@ const patientRegistrationSchema = z.object({
 type PatientRegistrationForm = z.infer<typeof patientRegistrationSchema>;
 
 export default function PublicPatientRegistration() {
+  const [, navigate] = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<{
     success: boolean;
     message: string;
     patientId?: string;
   } | null>(null);
+
+  // Get token from URL query parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+
+  // Validate token
+  const { data: tokenValidation, isLoading: isValidatingToken, error: tokenError } = useQuery({
+    queryKey: ['/api/public/registration-token', token],
+    enabled: !!token,
+    retry: false,
+  });
 
   const form = useForm<PatientRegistrationForm>({
     resolver: zodResolver(patientRegistrationSchema),
@@ -55,6 +69,14 @@ export default function PublicPatientRegistration() {
   });
 
   const onSubmit = async (data: PatientRegistrationForm) => {
+    if (!token) {
+      setSubmitResult({
+        success: false,
+        message: "No registration token provided",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitResult(null);
 
@@ -64,7 +86,10 @@ export default function PublicPatientRegistration() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          token,
+          ...data
+        }),
       });
 
       const result = await response.json();
@@ -88,6 +113,71 @@ export default function PublicPatientRegistration() {
     }
   };
 
+  // Show error if no token provided
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-8 px-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Invalid Registration Link</CardTitle>
+            <CardDescription>
+              This page requires a valid registration token. Please use the registration link provided to you.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading while validating token
+  if (isValidatingToken) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-8 px-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4 animate-pulse">
+              <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Validating Registration Link</CardTitle>
+            <CardDescription>
+              Please wait while we verify your registration link...
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show error if token validation failed
+  if (tokenError || !(tokenValidation as any)?.valid) {
+    const errorMessage = (tokenValidation as any)?.message || "Failed to validate registration link. Please try again.";
+    
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-8 px-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Registration Link Error</CardTitle>
+            <CardDescription className="text-red-600 dark:text-red-400 mt-2">
+              {errorMessage}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Please contact the clinic to request a new registration link.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show registration form if token is valid
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-2xl mx-auto">
@@ -104,7 +194,7 @@ export default function PublicPatientRegistration() {
           </CardHeader>
           <CardContent>
             {submitResult && (
-              <Alert className={`mb-6 ${submitResult.success ? 'border-green-200 bg-green-50 dark:bg-green-950' : 'border-red-200 bg-red-50 dark:bg-red-950'}`}>
+              <Alert className={`mb-6 ${submitResult.success ? 'border-green-200 bg-green-50 dark:bg-green-950' : 'border-red-200 bg-red-50 dark:bg-red-950'}`} data-testid="alert-submit-result">
                 {submitResult.success ? (
                   <CheckCircle className="h-4 w-4 text-green-600" />
                 ) : (
@@ -113,7 +203,7 @@ export default function PublicPatientRegistration() {
                 <AlertDescription className={submitResult.success ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}>
                   {submitResult.message}
                   {submitResult.success && submitResult.patientId && (
-                    <div className="mt-2 font-medium">
+                    <div className="mt-2 font-medium" data-testid="text-patient-id">
                       Your Patient ID: {submitResult.patientId}
                     </div>
                   )}

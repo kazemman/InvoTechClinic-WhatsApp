@@ -26,6 +26,7 @@ function Router() {
   return (
     <Switch>
       {/* Public Routes - No Authentication Required */}
+      <Route path="/register" component={PublicPatientRegistration} />
       <Route path="/register-patient" component={PublicPatientRegistration} />
       <Route path="/login" component={Login} />
       
