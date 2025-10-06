@@ -51,23 +51,6 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
-  
-  // Initialize storage for cron job
-  const storage = new DatabaseStorage();
-
-  // Set up daily cleanup cron job at 1:00 AM
-  cron.schedule('0 1 * * *', async () => {
-    try {
-      const result = await storage.cleanupOldBirthdayWishes();
-      log(`Daily cleanup at 1 AM: Deleted ${result.deletedCount} old birthday wishes`);
-    } catch (error) {
-      log(`Error during daily cleanup: ${error}`);
-    }
-  }, {
-    timezone: "Africa/Johannesburg" // South African timezone
-  });
-  
-  log('Daily birthday cleanup scheduler started (runs at 1:00 AM daily)');
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -109,5 +92,23 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Initialize background tasks AFTER server is listening and health checks pass
+    // This ensures deployment health checks succeed before heavy initialization
+    const storage = new DatabaseStorage();
+
+    // Set up daily cleanup cron job at 1:00 AM
+    cron.schedule('0 1 * * *', async () => {
+      try {
+        const result = await storage.cleanupOldBirthdayWishes();
+        log(`Daily cleanup at 1 AM: Deleted ${result.deletedCount} old birthday wishes`);
+      } catch (error) {
+        log(`Error during daily cleanup: ${error}`);
+      }
+    }, {
+      timezone: "Africa/Johannesburg" // South African timezone
+    });
+    
+    log('Daily birthday cleanup scheduler started (runs at 1:00 AM daily)');
   });
 })();
