@@ -2003,10 +2003,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Failed to clean up expired tokens:', err)
       );
       
-      // Get the base URL from environment or request
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-        : `${req.protocol}://${req.get('host')}`;
+      // Get the base URL - use production domain when deployed, dev domain in development
+      let baseUrl;
+      if (process.env.REPLIT_DEPLOYMENT === '1') {
+        // In production deployment, use the request host (deployed domain)
+        baseUrl = `${req.protocol}://${req.get('host')}`;
+      } else if (process.env.REPLIT_DEV_DOMAIN) {
+        // In development, use the dev domain
+        baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN}`;
+      } else {
+        // Fallback to request protocol and host
+        baseUrl = `${req.protocol}://${req.get('host')}`;
+      }
       
       const registrationUrl = `${baseUrl}/register?token=${token}`;
       
