@@ -2077,10 +2077,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public patient registration endpoint
-  app.post('/api/public/patient/register', async (req, res) => {
+  // Public patient registration endpoint with photo upload
+  app.post('/api/public/patient/register', upload.single('photo'), async (req, res) => {
     try {
-      // Validate request body including token
+      // When using FormData, all values come as strings, so we validate with string schema
       const bodySchema = z.object({
         token: z.string().min(1, 'Registration token is required'),
         firstName: z.string().min(1, 'First name is required'),
@@ -2088,7 +2088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone: z.string().min(10, 'Valid phone number is required'),
         email: z.string().min(1, 'Email is required').email('Valid email is required'),
         dateOfBirth: z.string(),
-        gender: z.enum(['male', 'female', 'other']),
+        gender: z.string(),
         idNumber: z.string().min(1, 'ID number is required'),
         address: z.string().optional().or(z.literal("")),
         medicalAidScheme: z.string().optional().or(z.literal("")),
@@ -2105,7 +2105,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { token, ...patientData } = validationResult.data;
+      const { token, gender, ...otherData } = validationResult.data;
+      
+      // Validate gender enum
+      if (!['male', 'female', 'other'].includes(gender)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid gender value'
+        });
+      }
+      
+      const patientData = {
+        ...otherData,
+        gender: gender as 'male' | 'female' | 'other'
+      };
       
       // Validate the registration token
       const registrationToken = await storage.getRegistrationTokenByToken(token);
@@ -2141,10 +2154,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Handle photo upload if provided
+      let photoUrl: string | undefined = undefined;
+      if (req.file) {
+        photoUrl = `/uploads/patient-photos/${req.file.filename}`;
+      }
+
       // Create new patient
       const newPatient = await storage.createPatient({
         ...patientData,
-        dateOfBirth: new Date(patientData.dateOfBirth)
+        dateOfBirth: new Date(patientData.dateOfBirth),
+        photoUrl
       });
       
       // Mark the registration token as used

@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, CheckCircle, UserPlus, Clock } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AlertCircle, CheckCircle, UserPlus, Clock, Upload, Eye } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -39,6 +40,8 @@ export default function PublicPatientRegistration() {
     message: string;
     patientId?: string;
   } | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Get token from URL query parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -80,6 +83,18 @@ export default function PublicPatientRegistration() {
     }
   }, [tokenValidation, form]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const onSubmit = async (data: PatientRegistrationForm) => {
     if (!token) {
       setSubmitResult({
@@ -93,15 +108,22 @@ export default function PublicPatientRegistration() {
     setSubmitResult(null);
 
     try {
+      const formData = new FormData();
+      formData.append('token', token);
+      
+      if (selectedFile) {
+        formData.append('photo', selectedFile);
+      }
+      
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          formData.append(key, value.toString());
+        }
+      });
+
       const response = await fetch('/api/public/patient/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token,
-          ...data
-        }),
+        body: formData,
       });
 
       const result = await response.json();
@@ -225,6 +247,52 @@ export default function PublicPatientRegistration() {
 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                {/* Photo Upload */}
+                <div className="flex items-center gap-6 pb-4 border-b dark:border-gray-700">
+                  <div>
+                    <Avatar className="w-24 h-24">
+                      {previewUrl && <AvatarImage src={previewUrl} />}
+                      <AvatarFallback className="text-lg">
+                        <Upload className="w-8 h-8" />
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <div>
+                    <div className="flex gap-2 mb-2">
+                      <label htmlFor="photo-upload" className="cursor-pointer">
+                        <Button variant="outline" asChild type="button">
+                          <span>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload ID/Passport
+                          </span>
+                        </Button>
+                      </label>
+                      {previewUrl && (
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={() => window.open(previewUrl, '_blank')}
+                          data-testid="button-view-id"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View ID
+                        </Button>
+                      )}
+                    </div>
+                    <input
+                      id="photo-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                      data-testid="input-patient-photo"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      ID/passport photo
+                    </p>
+                  </div>
+                </div>
+
                 {/* Personal Information */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
