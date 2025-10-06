@@ -355,7 +355,7 @@ export default function PublicPatientRegistration() {
                           <FormControl>
                             <Input 
                               data-testid="input-phone" 
-                              placeholder="+27123456789" 
+                              placeholder="0685921233" 
                               {...field} 
                             />
                           </FormControl>
