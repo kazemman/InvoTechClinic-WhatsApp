@@ -9,7 +9,7 @@ packages = ["jq"]
 [deployment]
 deploymentTarget = "vm"
 build = ["npm", "run", "build"]
-run = ["npm", "run", "dev"]
+run = ["npm", "start"]
 
 [env]
 PORT = "5000"
