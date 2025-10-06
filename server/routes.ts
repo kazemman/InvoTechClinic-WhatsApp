@@ -530,6 +530,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           conflict: true
         });
       }
+
+      // Check if doctor is available (not blocked by schedule)
+      const isDoctorAvailable = await storage.checkDoctorAvailability(
+        appointmentData.doctorId,
+        appointmentData.appointmentDate
+      );
+
+      if (!isDoctorAvailable) {
+        console.log('Doctor unavailable at requested time:', appointmentData.doctorId, 'at time:', appointmentData.appointmentDate);
+        return res.status(409).json({
+          message: 'This doctor is not available at the selected time. Please choose a different time slot.',
+          unavailable: true
+        });
+      }
       
       const appointment = await storage.createAppointment(appointmentData);
       console.log('Created appointment:', JSON.stringify(appointment, null, 2));
