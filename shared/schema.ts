@@ -459,6 +459,36 @@ export const registrationTokens = pgTable("registration_tokens", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const doctorUnavailabilityTypeEnum = pgEnum("doctor_unavailability_type", ["time_slot", "full_day"]);
+
+export const doctorUnavailability = pgTable("doctor_unavailability", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  doctorId: varchar("doctor_id").notNull().references(() => users.id),
+  date: timestamp("date").notNull(),
+  startTime: text("start_time"), // For time_slot type: e.g., "09:00"
+  endTime: text("end_time"), // For time_slot type: e.g., "09:30"
+  type: doctorUnavailabilityTypeEnum("type").notNull(),
+  reason: text("reason"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    // Index for performance when querying availability by doctor and date
+    doctorDateIdx: index("doctor_unavailability_doctor_date_idx").on(table.doctorId, table.date),
+  };
+});
+
+export const doctorUnavailabilityRelations = relations(doctorUnavailability, ({ one }) => ({
+  doctor: one(users, {
+    fields: [doctorUnavailability.doctorId],
+    references: [users.id],
+  }),
+  createdByUser: one(users, {
+    fields: [doctorUnavailability.createdBy],
+    references: [users.id],
+  }),
+}));
+
 export const insertRegistrationTokenSchema = createInsertSchema(registrationTokens).omit({
   id: true,
   createdAt: true,
@@ -466,6 +496,14 @@ export const insertRegistrationTokenSchema = createInsertSchema(registrationToke
 
 export type RegistrationToken = typeof registrationTokens.$inferSelect;
 export type InsertRegistrationToken = z.infer<typeof insertRegistrationTokenSchema>;
+
+export const insertDoctorUnavailabilitySchema = createInsertSchema(doctorUnavailability).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type DoctorUnavailability = typeof doctorUnavailability.$inferSelect;
+export type InsertDoctorUnavailability = z.infer<typeof insertDoctorUnavailabilitySchema>;
 
 // Login schema
 export const loginSchema = z.object({
