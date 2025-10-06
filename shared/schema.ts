@@ -449,6 +449,23 @@ export type InsertAppointmentReminder = z.infer<typeof insertAppointmentReminder
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 
+// Registration tokens table for secure time-limited patient registration links
+export const registrationTokens = pgTable("registration_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertRegistrationTokenSchema = createInsertSchema(registrationTokens).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type RegistrationToken = typeof registrationTokens.$inferSelect;
+export type InsertRegistrationToken = z.infer<typeof insertRegistrationTokenSchema>;
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email(),

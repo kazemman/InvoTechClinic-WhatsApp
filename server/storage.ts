@@ -1,12 +1,12 @@
 import { 
-  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes, appointmentReminders, apiKeys,
+  users, patients, appointments, checkIns, queue, consultations, payments, activityLogs, medicalAttachments, medicalAidClaims, birthdayWishes, appointmentReminders, apiKeys, registrationTokens,
   type User, type InsertUser, type Patient, type InsertPatient, 
   type Appointment, type InsertAppointment, type CheckIn, type InsertCheckIn,
   type Queue, type InsertQueue, type Consultation, type InsertConsultation,
   type Payment, type InsertPayment, type ActivityLog, type InsertActivityLog,
   type MedicalAttachment, type InsertMedicalAttachment, type MedicalAidClaim, type InsertMedicalAidClaim,
   type BirthdayWish, type InsertBirthdayWish, type AppointmentReminder, type InsertAppointmentReminder,
-  type ApiKey, type InsertApiKey
+  type ApiKey, type InsertApiKey, type RegistrationToken, type InsertRegistrationToken
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, lt, sql, isNotNull, asc, inArray } from "drizzle-orm";
@@ -163,6 +163,12 @@ export interface IStorage {
   getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined>;
   revokeApiKey(id: string): Promise<void>;
   updateApiKeyLastUsed(id: string): Promise<void>;
+
+  // Registration token methods
+  createRegistrationToken(token: InsertRegistrationToken): Promise<RegistrationToken>;
+  getRegistrationTokenByToken(token: string): Promise<RegistrationToken | undefined>;
+  markRegistrationTokenUsed(token: string): Promise<void>;
+  deleteExpiredRegistrationTokens(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1309,6 +1315,33 @@ export class DatabaseStorage implements IStorage {
       .update(apiKeys)
       .set({ lastUsedAt: new Date() })
       .where(eq(apiKeys.id, id));
+  }
+
+  // Registration token methods
+  async createRegistrationToken(token: InsertRegistrationToken): Promise<RegistrationToken> {
+    const [result] = await db.insert(registrationTokens).values(token).returning();
+    return result;
+  }
+
+  async getRegistrationTokenByToken(token: string): Promise<RegistrationToken | undefined> {
+    const [result] = await db
+      .select()
+      .from(registrationTokens)
+      .where(eq(registrationTokens.token, token));
+    return result;
+  }
+
+  async markRegistrationTokenUsed(token: string): Promise<void> {
+    await db
+      .update(registrationTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(registrationTokens.token, token));
+  }
+
+  async deleteExpiredRegistrationTokens(): Promise<void> {
+    await db
+      .delete(registrationTokens)
+      .where(lt(registrationTokens.expiresAt, new Date()));
   }
 }
 
