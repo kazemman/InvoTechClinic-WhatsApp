@@ -37,6 +37,7 @@ Preferred communication style: Simple, everyday language.
   - Users (role-based access control)
   - Patients (comprehensive patient profiles)
   - Appointments (scheduling with conflict prevention)
+  - Doctor Unavailability (doctor schedule blocking for specific time slots or full days)
   - Check-ins (patient arrival tracking)
   - Queue (real-time patient flow management)
   - Consultations (doctor notes and medical records)

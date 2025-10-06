@@ -27,7 +27,6 @@ const blockScheduleSchema = z.object({
 type BlockScheduleForm = z.infer<typeof blockScheduleSchema>;
 
 export default function DoctorSchedule() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedDoctor, setSelectedDoctor] = useState<string>('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -42,6 +41,21 @@ export default function DoctorSchedule() {
 
   const doctors = users?.filter((user: any) => user.role === 'doctor') || [];
 
+  const form = useForm<BlockScheduleForm>({
+    resolver: zodResolver(blockScheduleSchema),
+    defaultValues: {
+      doctorId: '',
+      date: new Date(),
+      type: 'time_slot',
+      startTime: '09:00',
+      endTime: '09:30',
+      reason: '',
+    },
+  });
+
+  const selectedDate = form.watch('date');
+  const blockType = form.watch('type');
+
   const { data: unavailability = [], isLoading } = useQuery({
     queryKey: ['/api/doctor-unavailability', selectedDoctor, selectedDate],
     queryFn: async () => {
@@ -50,17 +64,6 @@ export default function DoctorSchedule() {
       return res.json();
     },
     enabled: !!selectedDoctor && !!selectedDate,
-  });
-
-  const form = useForm<BlockScheduleForm>({
-    resolver: zodResolver(blockScheduleSchema),
-    defaultValues: {
-      doctorId: '',
-      type: 'time_slot',
-      startTime: '09:00',
-      endTime: '09:30',
-      reason: '',
-    },
   });
 
   const blockMutation = useMutation({
@@ -103,15 +106,7 @@ export default function DoctorSchedule() {
   });
 
   const onSubmit = (data: BlockScheduleForm) => {
-    if (!selectedDate) {
-      toast({
-        title: 'Error',
-        description: 'Please select a date',
-        variant: 'destructive',
-      });
-      return;
-    }
-    blockMutation.mutate({ ...data, date: selectedDate });
+    blockMutation.mutate(data);
   };
 
   const generateTimeSlots = () => {
@@ -127,7 +122,6 @@ export default function DoctorSchedule() {
   };
 
   const timeSlots = generateTimeSlots();
-  const blockType = form.watch('type');
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -181,7 +175,11 @@ export default function DoctorSchedule() {
                   <Calendar
                     mode="single"
                     selected={selectedDate}
-                    onSelect={setSelectedDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        form.setValue('date', date, { shouldValidate: true });
+                      }
+                    }}
                     className="rounded-md border"
                     data-testid="calendar-date-picker"
                   />
