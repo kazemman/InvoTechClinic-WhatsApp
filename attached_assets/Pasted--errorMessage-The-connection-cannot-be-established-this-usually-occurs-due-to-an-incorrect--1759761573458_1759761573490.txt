@@ -1,0 +1,28 @@
+{
+  "errorMessage": "The connection cannot be established, this usually occurs due to an incorrect host (domain) value",
+  "errorDetails": {
+    "rawErrorMessage": [
+      "getaddrinfo ENOTFOUND 2bdbfe62-3f21-4a92-934d-ff64ba6ef620-00-36iaafmr8cthf.replit.dev",
+      "getaddrinfo ENOTFOUND 2bdbfe62-3f21-4a92-934d-ff64ba6ef620-00-36iaafmr8cthf.replit.dev"
+    ],
+    "httpCode": "ENOTFOUND"
+  },
+  "n8nDetails": {
+    "nodeName": "HTTP Request",
+    "nodeType": "n8n-nodes-base.httpRequest",
+    "nodeVersion": 4.2,
+    "itemIndex": 0,
+    "time": "10/6/2025, 4:39:08 PM",
+    "n8nVersion": "1.113.3 (Self Hosted)",
+    "binaryDataMode": "default",
+    "stackTrace": [
+      "NodeApiError: The connection cannot be established, this usually occurs due to an incorrect host (domain) value",
+      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_afd197edb2c1f848eae21a96a97fab23/node_modules/n8n-nodes-base/nodes/HttpRequest/V3/HttpRequestV3.node.ts:847:16)",
+      "    at processTicksAndRejections (node:internal/process/task_queues:105:5)",
+      "    at WorkflowExecute.executeNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+sdk-trace-base@1.30_08b575bec2313d5d8a4cc75358971443/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1265:8)",
+      "    at WorkflowExecute.runNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+sdk-trace-base@1.30_08b575bec2313d5d8a4cc75358971443/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1446:11)",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+sdk-trace-base@1.30_08b575bec2313d5d8a4cc75358971443/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1847:27",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+sdk-trace-base@1.30_08b575bec2313d5d8a4cc75358971443/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2461:11"
+    ]
+  }
+}
