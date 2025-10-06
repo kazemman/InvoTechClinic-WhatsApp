@@ -12,6 +12,7 @@ import Appointments from "@/pages/Appointments";
 import CheckIn from "@/pages/CheckIn";
 import QueueManagement from "@/pages/QueueManagement";
 import DoctorPage from "@/pages/DoctorPage";
+import DoctorSchedule from "@/pages/DoctorSchedule";
 import BusinessInsights from "@/pages/BusinessInsights";
 import UserManagement from "@/pages/UserManagement";
 import SystemAdmin from "@/pages/SystemAdmin";
@@ -90,6 +91,14 @@ function Router() {
         <ProtectedRoute requiredRoles={['doctor', 'admin']}>
           <Layout>
             <DoctorPage />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/doctor-schedule">
+        <ProtectedRoute requiredRoles={['doctor', 'admin']}>
+          <Layout>
+            <DoctorSchedule />
           </Layout>
         </ProtectedRoute>
       </Route>

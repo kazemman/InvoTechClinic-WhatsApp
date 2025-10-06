@@ -45,6 +45,7 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
     { icon: Users, label: 'Queue Management', path: '/queue', roles: ['staff', 'admin', 'doctor'] },
     { icon: Heart, label: 'Customer Relations', path: '/customer-relations', roles: ['staff', 'admin'] },
     { icon: UserRound, label: "Doctor's Page", path: '/doctor', roles: ['doctor', 'admin'] },
+    { icon: Calendar, label: 'Doctor Schedule', path: '/doctor-schedule', roles: ['doctor', 'admin'] },
     { icon: CreditCard, label: 'Medical Aid Claims', path: '/medical-aid', roles: ['staff', 'admin'] },
     { icon: TrendingUp, label: 'Business Insights', path: '/insights', roles: ['admin'] },
     { icon: Settings, label: 'User Management', path: '/users', roles: ['admin'] },
