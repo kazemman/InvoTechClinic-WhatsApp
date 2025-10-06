@@ -2033,6 +2033,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all patient contact information for announcements (API key protected)
+  app.get('/api/patients/contacts', async (req, res) => {
+    try {
+      const apiKey = req.headers['x-api-key'] as string;
+      
+      if (!apiKey) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'API key is required' 
+        });
+      }
+
+      const hashedKey = hashApiKey(apiKey);
+      const validKey = await storage.getApiKeyByHash(hashedKey);
+
+      if (!validKey) {
+        return res.status(403).json({ 
+          success: false,
+          message: 'Invalid API key' 
+        });
+      }
+
+      // Get all patients with their first names and phone numbers
+      const patients = await storage.getAllPatients();
+      
+      const contacts = patients.map(patient => ({
+        firstName: patient.firstName,
+        phone: patient.phone
+      }));
+
+      res.json({
+        success: true,
+        count: contacts.length,
+        contacts
+      });
+    } catch (error) {
+      console.error('Error fetching patient contacts:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to fetch patient contacts' 
+      });
+    }
+  });
+
   // Validate registration token (public)
   app.get('/api/public/registration-token/:token', async (req, res) => {
     try {
