@@ -2098,6 +2098,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validationResult = bodySchema.safeParse(req.body);
       if (!validationResult.success) {
+        console.error('Public registration validation failed:', JSON.stringify(validationResult.error.errors, null, 2));
+        console.error('Request body:', JSON.stringify(req.body, null, 2));
         return res.status(400).json({
           success: false,
           message: 'Invalid patient data',
