@@ -548,6 +548,218 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get upcoming appointments for a patient by phone (API key protected)
+  app.get('/api/n8n/appointments/upcoming', async (req, res) => {
+    try {
+      const isValid = await validateApiKey(req);
+      if (!isValid) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Invalid or missing API key. Provide it via x-api-key header or Authorization: Bearer header' 
+        });
+      }
+
+      const { phone } = req.query;
+      
+      if (!phone || typeof phone !== 'string') {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Phone number is required as a query parameter' 
+        });
+      }
+
+      const patient = await storage.getPatientByPhone(phone);
+
+      if (!patient) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'Patient not found with this phone number',
+          appointments: []
+        });
+      }
+
+      const allAppointments = await storage.getAppointmentsByPatient(patient.id);
+      
+      // Filter for upcoming appointments (scheduled or confirmed, and in the future)
+      const now = new Date();
+      const upcomingAppointments = allAppointments.filter(apt => 
+        (apt.status === 'scheduled' || apt.status === 'confirmed') && 
+        new Date(apt.appointmentDate) > now
+      );
+
+      // Convert times to South African timezone for response
+      const appointmentsResponse = upcomingAppointments.map(apt => ({
+        id: apt.id,
+        appointmentDate: new Date(apt.appointmentDate.getTime() + (2 * 60 * 60 * 1000)),
+        appointmentType: apt.appointmentType,
+        status: apt.status,
+        doctorId: apt.doctorId,
+        doctorName: apt.doctor?.name,
+        notes: apt.notes
+      }));
+
+      res.json({
+        success: true,
+        count: appointmentsResponse.length,
+        appointments: appointmentsResponse
+      });
+    } catch (error) {
+      console.error('Error fetching upcoming appointments:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to fetch upcoming appointments' 
+      });
+    }
+  });
+
+  // Reschedule appointment by phone (API key protected)
+  app.patch('/api/n8n/appointments/reschedule', async (req, res) => {
+    try {
+      const isValid = await validateApiKey(req);
+      if (!isValid) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Invalid or missing API key. Provide it via x-api-key header or Authorization: Bearer header' 
+        });
+      }
+
+      const { phone, newDate, appointmentId } = req.body;
+
+      if (!phone) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Phone number is required' 
+        });
+      }
+
+      if (!newDate) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'New appointment date is required' 
+        });
+      }
+
+      // Find the patient
+      const patient = await storage.getPatientByPhone(phone);
+      if (!patient) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'Patient not found with this phone number'
+        });
+      }
+
+      // Get patient's upcoming appointments
+      const allAppointments = await storage.getAppointmentsByPatient(patient.id);
+      const now = new Date();
+      const upcomingAppointments = allAppointments.filter(apt => 
+        (apt.status === 'scheduled' || apt.status === 'confirmed') && 
+        new Date(apt.appointmentDate) > now
+      );
+
+      if (upcomingAppointments.length === 0) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'No upcoming appointments found for this patient'
+        });
+      }
+
+      // Determine which appointment to reschedule
+      let appointmentToReschedule;
+      if (appointmentId) {
+        appointmentToReschedule = upcomingAppointments.find(apt => apt.id === appointmentId);
+        if (!appointmentToReschedule) {
+          return res.status(404).json({ 
+            success: false,
+            message: 'Appointment not found or not eligible for rescheduling'
+          });
+        }
+      } else {
+        // If no appointmentId provided, reschedule the next upcoming appointment
+        appointmentToReschedule = upcomingAppointments.sort((a, b) => 
+          new Date(a.appointmentDate).getTime() - new Date(b.appointmentDate).getTime()
+        )[0];
+      }
+
+      // Handle timezone: If the date string doesn't have timezone info, treat it as South African time
+      let newAppointmentDate: Date;
+      if (typeof newDate === 'string' && !newDate.includes('Z') && !newDate.match(/[+-]\d{2}:\d{2}$/)) {
+        const saDate = new Date(newDate);
+        newAppointmentDate = new Date(saDate.getTime() - (2 * 60 * 60 * 1000)); // Convert SA to UTC
+        
+        console.log('📅 Reschedule timezone conversion:', {
+          input: newDate,
+          interpretedAsSA: saDate.toISOString(),
+          convertedToUTC: newAppointmentDate.toISOString()
+        });
+      } else {
+        newAppointmentDate = new Date(newDate);
+      }
+
+      // Check for conflicts at the new time
+      const hasConflict = await storage.checkAppointmentConflict(
+        appointmentToReschedule.doctorId,
+        newAppointmentDate,
+        appointmentToReschedule.id // Exclude current appointment from conflict check
+      );
+
+      if (hasConflict) {
+        return res.status(409).json({ 
+          success: false,
+          message: 'The doctor already has an appointment at the new time slot. Please choose a different time.',
+          conflict: true
+        });
+      }
+
+      // Check if doctor is available at new time
+      const isDoctorAvailable = await storage.checkDoctorAvailability(
+        appointmentToReschedule.doctorId,
+        newAppointmentDate
+      );
+
+      if (!isDoctorAvailable) {
+        return res.status(409).json({
+          success: false,
+          message: 'The doctor is not available at the new time slot. Please choose a different time.',
+          unavailable: true
+        });
+      }
+
+      // Update the appointment
+      const updatedAppointment = await storage.updateAppointment(
+        appointmentToReschedule.id,
+        { appointmentDate: newAppointmentDate }
+      );
+
+      // Convert response time to South African timezone
+      const appointmentResponse = {
+        ...updatedAppointment,
+        appointmentDate: new Date(updatedAppointment.appointmentDate.getTime() + (2 * 60 * 60 * 1000))
+      };
+
+      res.json({
+        success: true,
+        message: 'Appointment rescheduled successfully',
+        appointment: appointmentResponse,
+        previousDate: new Date(appointmentToReschedule.appointmentDate.getTime() + (2 * 60 * 60 * 1000))
+      });
+    } catch (error: any) {
+      console.error('Reschedule appointment error:', error);
+      
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid appointment data provided.',
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to reschedule appointment' 
+      });
+    }
+  });
+
   app.get('/api/patients/:id', authenticateToken, async (req, res) => {
     try {
       const { id } = req.params;
