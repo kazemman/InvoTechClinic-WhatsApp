@@ -449,16 +449,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all doctors for auto-assignment if needed
       let doctorId = rawData.doctorId;
       if (!doctorId) {
-        const doctors = await storage.getUsersByRole('doctor');
+        const allUsers = await storage.getAllUsers();
+        const doctors = allUsers.filter(user => user.role === 'doctor');
         if (doctors.length === 0) {
           return res.status(500).json({ 
             success: false,
             message: 'No doctors available in the system' 
           });
         }
-        // Auto-assign to first available doctor (you can implement smarter logic later)
+        // Auto-assign to first doctor (you can implement smarter logic later)
         doctorId = doctors[0].id;
-        console.log('🩺 Auto-assigned doctor:', doctors[0].username);
+        console.log('🩺 Auto-assigned doctor:', doctors[0].name);
       }
       
       // Create appointment data with looked-up patientId and doctorId
