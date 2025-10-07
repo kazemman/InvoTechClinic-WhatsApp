@@ -2538,7 +2538,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           inputDate.getUTCDate(),
           0, 0, 0, 0
         ));
-        console.log(`📅 Saving unavailability for date: ${normalizedDate.toISOString()} (input: ${req.body.date})`);
       }
 
       const requestData = {
