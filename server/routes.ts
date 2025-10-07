@@ -399,7 +399,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate appointment data
-      const appointmentData = insertAppointmentSchema.parse(req.body);
+      const rawData = req.body;
+      
+      // Parse the appointment data
+      let appointmentData = insertAppointmentSchema.parse(rawData);
+      
+      // Handle timezone: If the date string doesn't have timezone info (no 'Z' or offset),
+      // treat it as South African time (UTC+2) and convert to UTC for storage
+      if (typeof rawData.appointmentDate === 'string' && !rawData.appointmentDate.includes('Z') && !rawData.appointmentDate.match(/[+-]\d{2}:\d{2}$/)) {
+        // Date is in South African time (UTC+2), convert to UTC by subtracting 2 hours
+        const saDate = new Date(rawData.appointmentDate);
+        const utcDate = new Date(saDate.getTime() - (2 * 60 * 60 * 1000)); // Subtract 2 hours
+        appointmentData = { ...appointmentData, appointmentDate: utcDate };
+        
+        console.log('📅 Timezone conversion:', {
+          input: rawData.appointmentDate,
+          interpretedAsSA: saDate.toISOString(),
+          convertedToUTC: utcDate.toISOString()
+        });
+      }
       
       // Check for appointment conflicts
       const hasConflict = await storage.checkAppointmentConflict(
