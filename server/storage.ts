@@ -463,9 +463,11 @@ export class DatabaseStorage implements IStorage {
     
     // Check if doctor has full day unavailability
     const unavailabilityBlocks = await this.getDoctorUnavailabilityByDate(doctorId, date);
+    console.log(`🔍 Unavailability blocks for doctor ${doctorId} on ${date.toISOString().split('T')[0]}:`, unavailabilityBlocks);
     const hasFullDayBlock = unavailabilityBlocks.some(block => block.type === 'full_day');
     
     if (hasFullDayBlock) {
+      console.log('🚫 Full day block found - no slots available');
       return []; // No slots available if doctor is unavailable all day
     }
     
@@ -503,7 +505,11 @@ export class DatabaseStorage implements IStorage {
         const isUnavailable = unavailabilityBlocks.some(block => {
           if (block.type === 'time_slot' && block.startTime && block.endTime) {
             // Check if this slot falls within the unavailable time range
-            return timeString >= block.startTime && timeString < block.endTime;
+            const unavailable = timeString >= block.startTime && timeString < block.endTime;
+            if (unavailable) {
+              console.log(`⏰ Slot ${timeString} is unavailable (blocked: ${block.startTime}-${block.endTime})`);
+            }
+            return unavailable;
           }
           return false;
         });
@@ -1381,10 +1387,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDoctorUnavailabilityByDate(doctorId: string, date: Date): Promise<DoctorUnavailability[]> {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Use UTC to avoid timezone issues
+    const startOfDay = new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      0, 0, 0, 0
+    ));
+    const endOfDay = new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      23, 59, 59, 999
+    ));
+
+    console.log(`📅 Querying unavailability for ${doctorId} between ${startOfDay.toISOString()} and ${endOfDay.toISOString()}`);
 
     const results = await db
       .select()
@@ -1396,6 +1413,8 @@ export class DatabaseStorage implements IStorage {
           lte(doctorUnavailability.date, endOfDay)
         )
       );
+    
+    console.log(`✅ Found ${results.length} unavailability blocks`);
     return results;
   }
 
