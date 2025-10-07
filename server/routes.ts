@@ -450,10 +450,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create appointment
       const appointment = await storage.createAppointment(appointmentData);
 
+      // Convert appointment time back to South African time for the response
+      const appointmentResponse = {
+        ...appointment,
+        appointmentDate: new Date(appointment.appointmentDate.getTime() + (2 * 60 * 60 * 1000)) // Add 2 hours for SA time
+      };
+
       res.status(201).json({
         success: true,
         message: 'Appointment booked successfully',
-        appointment
+        appointment: appointmentResponse
       });
     } catch (error: any) {
       console.error('n8n appointment booking error:', error);
