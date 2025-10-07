@@ -2527,10 +2527,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Authentication required' });
       }
 
-      const unavailabilityData = insertDoctorUnavailabilitySchema.parse({
+      // Convert date string to Date object for schema validation
+      const requestData = {
         ...req.body,
+        date: req.body.date ? new Date(req.body.date) : undefined,
         createdBy: req.user.id
-      });
+      };
+
+      const unavailabilityData = insertDoctorUnavailabilitySchema.parse(requestData);
 
       const unavailability = await storage.createDoctorUnavailability(unavailabilityData);
 
