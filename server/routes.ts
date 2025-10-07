@@ -306,42 +306,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to validate API key
+  const validateApiKey = async (req: express.Request): Promise<boolean> => {
+    let apiKey = req.headers['x-api-key'] as string;
+    
+    if (!apiKey) {
+      const authHeader = req.headers['authorization'];
+      if (authHeader) {
+        const token = authHeader.split(' ')[1];
+        if (token && token.startsWith('sk_')) {
+          apiKey = token;
+        }
+      }
+    }
+    
+    if (!apiKey) return false;
+    
+    const hashedKey = hashApiKey(apiKey);
+    const validKey = await storage.getApiKeyByHash(hashedKey);
+    return !!validKey;
+  };
+
   // Get all patient contact information for announcements (API key protected)
   app.get('/api/patients/contacts', async (req, res) => {
     try {
-      // Accept API key from either x-api-key header or Authorization header (for n8n compatibility)
-      let apiKey = req.headers['x-api-key'] as string;
-      
-      // If not in x-api-key, check Authorization header
-      if (!apiKey) {
-        const authHeader = req.headers['authorization'];
-        if (authHeader) {
-          // Extract token from "Bearer sk_..." format
-          const token = authHeader.split(' ')[1];
-          if (token && token.startsWith('sk_')) {
-            apiKey = token;
-          }
-        }
-      }
-      
-      if (!apiKey) {
+      const isValid = await validateApiKey(req);
+      if (!isValid) {
         return res.status(401).json({ 
           success: false,
-          message: 'API key is required. Provide it via x-api-key header or Authorization: Bearer header' 
+          message: 'Invalid or missing API key. Provide it via x-api-key header or Authorization: Bearer header' 
         });
       }
 
-      const hashedKey = hashApiKey(apiKey);
-      const validKey = await storage.getApiKeyByHash(hashedKey);
-
-      if (!validKey) {
-        return res.status(403).json({ 
-          success: false,
-          message: 'Invalid API key' 
-        });
-      }
-
-      // Get all patients with their first names and phone numbers
       const patients = await storage.getAllPatients();
       
       const contacts = patients.map(patient => ({
@@ -363,53 +359,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Book appointment via n8n (API key protected)
-  app.post('/api/n8n/appointments', async (req, res) => {
+  // Lookup patient by phone number (API key protected)
+  app.get('/api/n8n/patients/lookup', async (req, res) => {
     try {
-      // Accept API key from either x-api-key header or Authorization header (for n8n compatibility)
-      let apiKey = req.headers['x-api-key'] as string;
-      
-      // If not in x-api-key, check Authorization header
-      if (!apiKey) {
-        const authHeader = req.headers['authorization'];
-        if (authHeader) {
-          // Extract token from "Bearer sk_..." format
-          const token = authHeader.split(' ')[1];
-          if (token && token.startsWith('sk_')) {
-            apiKey = token;
-          }
-        }
-      }
-      
-      if (!apiKey) {
+      const isValid = await validateApiKey(req);
+      if (!isValid) {
         return res.status(401).json({ 
           success: false,
-          message: 'API key is required. Provide it via x-api-key header or Authorization: Bearer header' 
+          message: 'Invalid or missing API key. Provide it via x-api-key header or Authorization: Bearer header' 
         });
       }
 
-      const hashedKey = hashApiKey(apiKey);
-      const validKey = await storage.getApiKeyByHash(hashedKey);
-
-      if (!validKey) {
-        return res.status(403).json({ 
-          success: false,
-          message: 'Invalid API key' 
-        });
-      }
-
-      // Validate appointment data
-      const rawData = req.body;
+      const { phone } = req.query;
       
-      // Parse the appointment data
-      let appointmentData = insertAppointmentSchema.parse(rawData);
+      if (!phone || typeof phone !== 'string') {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Phone number is required as a query parameter' 
+        });
+      }
+
+      const patient = await storage.getPatientByPhone(phone);
+
+      if (!patient) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'Patient not found with this phone number',
+          exists: false
+        });
+      }
+
+      res.json({
+        success: true,
+        exists: true,
+        patient: {
+          id: patient.id,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          phone: patient.phone,
+          email: patient.email,
+          dateOfBirth: patient.dateOfBirth,
+          gender: patient.gender
+        }
+      });
+    } catch (error) {
+      console.error('Error looking up patient:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to lookup patient' 
+      });
+    }
+  });
+
+  // Book appointment via n8n (API key protected)
+  // Accepts phone instead of patientId for easier AI agent integration
+  app.post('/api/n8n/appointments', async (req, res) => {
+    try {
+      const isValid = await validateApiKey(req);
+      if (!isValid) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Invalid or missing API key. Provide it via x-api-key header or Authorization: Bearer header' 
+        });
+      }
+
+      const rawData = req.body;
+      let patientId = rawData.patientId;
+      
+      // If phone is provided instead of patientId, look up the patient
+      if (rawData.phone && !patientId) {
+        const patient = await storage.getPatientByPhone(rawData.phone);
+        if (!patient) {
+          return res.status(404).json({ 
+            success: false,
+            message: 'Patient not found with this phone number. Please register the patient first.',
+            patientNotFound: true
+          });
+        }
+        patientId = patient.id;
+      }
+
+      if (!patientId) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Either patientId or phone must be provided' 
+        });
+      }
+
+      // Get all doctors for auto-assignment if needed
+      let doctorId = rawData.doctorId;
+      if (!doctorId) {
+        const doctors = await storage.getUsersByRole('doctor');
+        if (doctors.length === 0) {
+          return res.status(500).json({ 
+            success: false,
+            message: 'No doctors available in the system' 
+          });
+        }
+        // Auto-assign to first available doctor (you can implement smarter logic later)
+        doctorId = doctors[0].id;
+        console.log('🩺 Auto-assigned doctor:', doctors[0].username);
+      }
+      
+      // Create appointment data with looked-up patientId and doctorId
+      const appointmentDataRaw = {
+        ...rawData,
+        patientId,
+        doctorId,
+        appointmentDate: rawData.appointmentDate
+      };
+
+      // Parse and validate the appointment data
+      let appointmentData = insertAppointmentSchema.parse(appointmentDataRaw);
       
       // Handle timezone: If the date string doesn't have timezone info (no 'Z' or offset),
       // treat it as South African time (UTC+2) and convert to UTC for storage
       if (typeof rawData.appointmentDate === 'string' && !rawData.appointmentDate.includes('Z') && !rawData.appointmentDate.match(/[+-]\d{2}:\d{2}$/)) {
-        // Date is in South African time (UTC+2), convert to UTC by subtracting 2 hours
         const saDate = new Date(rawData.appointmentDate);
-        const utcDate = new Date(saDate.getTime() - (2 * 60 * 60 * 1000)); // Subtract 2 hours
+        const utcDate = new Date(saDate.getTime() - (2 * 60 * 60 * 1000));
         appointmentData = { ...appointmentData, appointmentDate: utcDate };
         
         console.log('📅 Timezone conversion:', {
@@ -453,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Convert appointment time back to South African time for the response
       const appointmentResponse = {
         ...appointment,
-        appointmentDate: new Date(appointment.appointmentDate.getTime() + (2 * 60 * 60 * 1000)) // Add 2 hours for SA time
+        appointmentDate: new Date(appointment.appointmentDate.getTime() + (2 * 60 * 60 * 1000))
       };
 
       res.status(201).json({
