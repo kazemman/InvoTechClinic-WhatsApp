@@ -74,13 +74,26 @@ export default function DoctorSchedule() {
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast({
         title: 'Schedule Updated',
         description: 'Doctor unavailability has been recorded.',
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/doctor-unavailability'] });
-      form.reset();
+      // Update selectedDoctor to ensure query uses the right doctor
+      setSelectedDoctor(variables.doctorId);
+      // Invalidate the specific query for this doctor and date
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/doctor-unavailability', variables.doctorId, variables.date] 
+      });
+      // Reset only the fields we want, keep doctor and date selected
+      form.reset({
+        doctorId: variables.doctorId,
+        date: variables.date,
+        type: 'time_slot',
+        startTime: '09:00',
+        endTime: '09:30',
+        reason: '',
+      });
     },
     onError: () => {
       toast({
