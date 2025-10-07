@@ -51,6 +51,10 @@ Preferred communication style: Simple, everyday language.
   - Doctor: Queue management, patient consultations, medical records access
 - **Security**: JWT tokens with configurable expiration, password hashing with bcrypt
 - **Route Protection**: Frontend and backend route guards based on user roles
+- **n8n Integration**: API key authentication for external workflow automation
+  - API keys stored securely with bcrypt hashing
+  - Dual header support: `x-api-key` or `Authorization: Bearer sk_...`
+  - Endpoints: `/api/patients/contacts` (GET), `/api/n8n/appointments` (POST)
 
 ### Real-time Features
 - **WebSocket Integration**: Live queue updates across all connected clients

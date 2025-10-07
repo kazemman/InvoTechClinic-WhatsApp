@@ -363,6 +363,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Book appointment via n8n (API key protected)
+  app.post('/api/n8n/appointments', async (req, res) => {
+    try {
+      // Accept API key from either x-api-key header or Authorization header (for n8n compatibility)
+      let apiKey = req.headers['x-api-key'] as string;
+      
+      // If not in x-api-key, check Authorization header
+      if (!apiKey) {
+        const authHeader = req.headers['authorization'];
+        if (authHeader) {
+          // Extract token from "Bearer sk_..." format
+          const token = authHeader.split(' ')[1];
+          if (token && token.startsWith('sk_')) {
+            apiKey = token;
+          }
+        }
+      }
+      
+      if (!apiKey) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'API key is required. Provide it via x-api-key header or Authorization: Bearer header' 
+        });
+      }
+
+      const hashedKey = hashApiKey(apiKey);
+      const validKey = await storage.getApiKeyByHash(hashedKey);
+
+      if (!validKey) {
+        return res.status(403).json({ 
+          success: false,
+          message: 'Invalid API key' 
+        });
+      }
+
+      // Validate appointment data
+      const appointmentData = insertAppointmentSchema.parse(req.body);
+      
+      // Check for appointment conflicts
+      const hasConflict = await storage.checkAppointmentConflict(
+        appointmentData.doctorId, 
+        appointmentData.appointmentDate
+      );
+      
+      if (hasConflict) {
+        return res.status(409).json({ 
+          success: false,
+          message: 'This doctor already has an appointment at the selected time. Please choose a different time slot.',
+          conflict: true
+        });
+      }
+
+      // Check if doctor is available (not blocked by schedule)
+      const isDoctorAvailable = await storage.checkDoctorAvailability(
+        appointmentData.doctorId,
+        appointmentData.appointmentDate
+      );
+
+      if (!isDoctorAvailable) {
+        return res.status(409).json({
+          success: false,
+          message: 'This doctor is not available at the selected time. Please choose a different time slot.',
+          unavailable: true
+        });
+      }
+      
+      // Create appointment
+      const appointment = await storage.createAppointment(appointmentData);
+
+      res.status(201).json({
+        success: true,
+        message: 'Appointment booked successfully',
+        appointment
+      });
+    } catch (error: any) {
+      console.error('n8n appointment booking error:', error);
+      
+      // Handle validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid appointment data provided.',
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to book appointment' 
+      });
+    }
+  });
+
   app.get('/api/patients/:id', authenticateToken, async (req, res) => {
     try {
       const { id } = req.params;
