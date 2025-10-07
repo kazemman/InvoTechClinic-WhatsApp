@@ -594,7 +594,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         appointmentType: apt.appointmentType,
         status: apt.status,
         doctorId: apt.doctorId,
-        doctorName: apt.doctor?.name,
         notes: apt.notes
       }));
 
