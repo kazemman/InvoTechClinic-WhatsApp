@@ -2527,10 +2527,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Authentication required' });
       }
 
-      // Convert date string to Date object for schema validation
+      // Normalize date to UTC midnight for the calendar date
+      let normalizedDate: Date | undefined;
+      if (req.body.date) {
+        const inputDate = new Date(req.body.date);
+        // Create date at UTC midnight for the calendar date
+        normalizedDate = new Date(Date.UTC(
+          inputDate.getUTCFullYear(),
+          inputDate.getUTCMonth(),
+          inputDate.getUTCDate(),
+          0, 0, 0, 0
+        ));
+        console.log(`📅 Saving unavailability for date: ${normalizedDate.toISOString()} (input: ${req.body.date})`);
+      }
+
       const requestData = {
         ...req.body,
-        date: req.body.date ? new Date(req.body.date) : undefined,
+        date: normalizedDate,
         createdBy: req.user.id
       };
 
