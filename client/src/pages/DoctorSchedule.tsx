@@ -60,7 +60,13 @@ export default function DoctorSchedule() {
     queryKey: ['/api/doctor-unavailability', selectedDoctor, selectedDate],
     queryFn: async () => {
       if (!selectedDoctor || !selectedDate) return [];
-      const res = await apiRequest('GET', `/api/doctor-unavailability/${selectedDoctor}?date=${selectedDate.toISOString()}`);
+      // Format date as YYYY-MM-DD to avoid timezone issues
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+      
+      const res = await apiRequest('GET', `/api/doctor-unavailability/${selectedDoctor}?date=${dateString}`);
       return res.json();
     },
     enabled: !!selectedDoctor && !!selectedDate,
