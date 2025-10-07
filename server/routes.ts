@@ -2543,7 +2543,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requestData = {
         ...req.body,
         date: normalizedDate,
-        createdBy: req.user.id
+        createdBy: req.user.id,
+        // Clear time fields if this is a full day block
+        startTime: req.body.type === 'full_day' ? null : req.body.startTime,
+        endTime: req.body.type === 'full_day' ? null : req.body.endTime,
       };
 
       const unavailabilityData = insertDoctorUnavailabilitySchema.parse(requestData);
