@@ -2530,14 +2530,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Normalize date to UTC midnight for the calendar date
       let normalizedDate: Date | undefined;
       if (req.body.date) {
-        const inputDate = new Date(req.body.date);
+        // Parse YYYY-MM-DD format directly to avoid timezone shifts
+        const dateStr = req.body.date;
+        const [year, month, day] = dateStr.split('-').map(Number);
         // Create date at UTC midnight for the calendar date
-        normalizedDate = new Date(Date.UTC(
-          inputDate.getUTCFullYear(),
-          inputDate.getUTCMonth(),
-          inputDate.getUTCDate(),
-          0, 0, 0, 0
-        ));
+        normalizedDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
       }
 
       const requestData = {

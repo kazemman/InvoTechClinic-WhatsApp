@@ -463,12 +463,9 @@ export class DatabaseStorage implements IStorage {
     
     // Check if doctor has full day unavailability
     const unavailabilityBlocks = await this.getDoctorUnavailabilityByDate(doctorId, date);
-    console.log(`📅 Checking availability for ${date.toISOString().split('T')[0]}, found ${unavailabilityBlocks.length} blocks:`, 
-      unavailabilityBlocks.map(b => ({ type: b.type, start: b.startTime, end: b.endTime })));
     const hasFullDayBlock = unavailabilityBlocks.some(block => block.type === 'full_day');
     
     if (hasFullDayBlock) {
-      console.log('🚫 Full day block found - returning empty slots');
       return []; // No slots available if doctor is unavailable all day
     }
     
@@ -506,11 +503,7 @@ export class DatabaseStorage implements IStorage {
         const isUnavailable = unavailabilityBlocks.some(block => {
           if (block.type === 'time_slot' && block.startTime && block.endTime) {
             // Check if this slot falls within the unavailable time range
-            const blocked = timeString >= block.startTime && timeString < block.endTime;
-            if (blocked) {
-              console.log(`⏰ Blocking slot ${timeString} (unavailable: ${block.startTime}-${block.endTime})`);
-            }
-            return blocked;
+            return timeString >= block.startTime && timeString < block.endTime;
           }
           return false;
         });

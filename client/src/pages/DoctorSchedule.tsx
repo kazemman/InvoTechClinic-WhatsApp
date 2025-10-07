@@ -68,9 +68,15 @@ export default function DoctorSchedule() {
 
   const blockMutation = useMutation({
     mutationFn: async (data: BlockScheduleForm) => {
+      // Format date as YYYY-MM-DD to avoid timezone issues
+      const year = data.date.getFullYear();
+      const month = String(data.date.getMonth() + 1).padStart(2, '0');
+      const day = String(data.date.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+      
       const res = await apiRequest('POST', '/api/doctor-unavailability', {
         ...data,
-        date: data.date.toISOString(),
+        date: dateString,
       });
       return res.json();
     },
