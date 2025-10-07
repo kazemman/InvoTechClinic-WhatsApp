@@ -139,8 +139,8 @@ export default function DoctorSchedule() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Doctor Schedule Management</h1>
-        <p className="text-muted-foreground mt-2">Manage doctor availability and block unavailable time slots</p>
+        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Doctor Unavailability</h1>
+        <p className="text-muted-foreground mt-2">Manage doctor unavailability and block unavailable time slots</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
