@@ -461,6 +461,14 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
     
+    // Check if doctor has full day unavailability
+    const unavailabilityBlocks = await this.getDoctorUnavailabilityByDate(doctorId, date);
+    const hasFullDayBlock = unavailabilityBlocks.some(block => block.type === 'full_day');
+    
+    if (hasFullDayBlock) {
+      return []; // No slots available if doctor is unavailable all day
+    }
+    
     const slots: string[] = [];
     let startHour = 8;
     let endHour = 17;
@@ -483,9 +491,24 @@ export class DatabaseStorage implements IStorage {
           0
         ));
         
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        
+        // Check for appointment conflicts
         const hasConflict = await this.checkAppointmentConflict(doctorId, slotTime);
-        if (!hasConflict) {
-          const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        if (hasConflict) {
+          continue;
+        }
+        
+        // Check for doctor unavailability in this time slot
+        const isUnavailable = unavailabilityBlocks.some(block => {
+          if (block.type === 'time_slot' && block.startTime && block.endTime) {
+            // Check if this slot falls within the unavailable time range
+            return timeString >= block.startTime && timeString < block.endTime;
+          }
+          return false;
+        });
+        
+        if (!isUnavailable) {
           slots.push(timeString);
         }
       }
