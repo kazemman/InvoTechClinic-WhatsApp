@@ -723,23 +723,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Update the appointment
-      const updatedAppointment = await storage.updateAppointment(
+      // Cancel the old appointment
+      await storage.updateAppointment(
         appointmentToReschedule.id,
-        { appointmentDate: newAppointmentDate }
+        { status: 'cancelled' }
       );
+
+      // Create a new appointment at the new time
+      const newAppointment = await storage.createAppointment({
+        patientId: appointmentToReschedule.patientId,
+        doctorId: appointmentToReschedule.doctorId,
+        appointmentDate: newAppointmentDate,
+        appointmentType: appointmentToReschedule.appointmentType,
+        status: 'scheduled',
+        notes: appointmentToReschedule.notes
+      });
 
       // Convert response time to South African timezone
       const appointmentResponse = {
-        ...updatedAppointment,
-        appointmentDate: new Date(updatedAppointment.appointmentDate.getTime() + (2 * 60 * 60 * 1000))
+        ...newAppointment,
+        appointmentDate: new Date(newAppointment.appointmentDate.getTime() + (2 * 60 * 60 * 1000))
       };
 
       res.json({
         success: true,
         message: 'Appointment rescheduled successfully',
         appointment: appointmentResponse,
-        previousDate: new Date(appointmentToReschedule.appointmentDate.getTime() + (2 * 60 * 60 * 1000))
+        previousDate: new Date(appointmentToReschedule.appointmentDate.getTime() + (2 * 60 * 60 * 1000)),
+        cancelledAppointmentId: appointmentToReschedule.id
       });
     } catch (error: any) {
       console.error('Reschedule appointment error:', error);
@@ -882,7 +893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Appointment routes
   app.get('/api/appointments', authenticateToken, async (req, res) => {
     try {
-      const { date, doctorId } = req.query;
+      const { date, doctorId, includeCancelled } = req.query;
       let appointments;
 
       if (date) {
@@ -897,6 +908,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         const today = new Date();
         appointments = await storage.getAppointmentsByDate(today);
+      }
+
+      // Filter out cancelled appointments unless explicitly requested
+      if (includeCancelled !== 'true') {
+        appointments = appointments.filter((apt: any) => apt.status !== 'cancelled');
       }
 
       res.json(appointments);
