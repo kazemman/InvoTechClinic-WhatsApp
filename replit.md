@@ -54,7 +54,12 @@ Preferred communication style: Simple, everyday language.
 - **n8n Integration**: API key authentication for external workflow automation
   - API keys stored securely with bcrypt hashing
   - Dual header support: `x-api-key` or `Authorization: Bearer sk_...`
-  - Endpoints: `/api/patients/contacts` (GET), `/api/n8n/appointments` (POST)
+  - Endpoints: 
+    - `/api/patients/contacts` (GET) - Get all patient contact info
+    - `/api/n8n/appointments` (POST) - Book new appointment by phone
+    - `/api/n8n/appointments/upcoming` (GET) - Get patient's upcoming appointments by phone
+    - `/api/n8n/appointments/reschedule` (PATCH) - Reschedule appointment by phone
+    - `/api/n8n/appointments/cancel` (POST) - Cancel appointment by phone
 
 ### Real-time Features
 - **WebSocket Integration**: Live queue updates across all connected clients

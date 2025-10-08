@@ -778,6 +778,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel appointment by phone (API key protected)
+  app.post('/api/n8n/appointments/cancel', async (req, res) => {
+    try {
+      const isValid = await validateApiKey(req);
+      if (!isValid) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Invalid or missing API key. Provide it via x-api-key header or Authorization: Bearer header' 
+        });
+      }
+
+      const { phone, appointmentId } = req.body;
+
+      if (!phone) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Phone number is required' 
+        });
+      }
+
+      // Find the patient
+      const patient = await storage.getPatientByPhone(phone);
+      if (!patient) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'Patient not found with this phone number'
+        });
+      }
+
+      // Get patient's upcoming appointments
+      const allAppointments = await storage.getAppointmentsByPatient(patient.id);
+      const now = new Date();
+      const upcomingAppointments = allAppointments.filter(apt => 
+        (apt.status === 'scheduled' || apt.status === 'confirmed') && 
+        new Date(apt.appointmentDate) > now
+      );
+
+      if (upcomingAppointments.length === 0) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'No upcoming appointments found for this patient'
+        });
+      }
+
+      // Determine which appointment to cancel
+      let appointmentToCancel;
+      if (appointmentId) {
+        appointmentToCancel = upcomingAppointments.find(apt => apt.id === appointmentId);
+        if (!appointmentToCancel) {
+          return res.status(404).json({ 
+            success: false,
+            message: 'Appointment not found or not eligible for cancellation'
+          });
+        }
+      } else {
+        // If no appointmentId provided, cancel the next upcoming appointment
+        appointmentToCancel = upcomingAppointments.sort((a, b) => 
+          new Date(a.appointmentDate).getTime() - new Date(b.appointmentDate).getTime()
+        )[0];
+      }
+
+      // Cancel the appointment
+      await storage.updateAppointment(
+        appointmentToCancel.id,
+        { status: 'cancelled' }
+      );
+
+      // Re-fetch the appointment to get the authoritative updated data
+      const cancelledAppointment = await storage.getAppointment(appointmentToCancel.id);
+
+      if (!cancelledAppointment) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to verify appointment cancellation'
+        });
+      }
+
+      // Convert response time to South African timezone
+      const appointmentDate = new Date(cancelledAppointment.appointmentDate);
+      const appointmentResponse = {
+        ...cancelledAppointment,
+        appointmentDate: new Date(appointmentDate.getTime() + (2 * 60 * 60 * 1000))
+      };
+
+      res.json({
+        success: true,
+        message: 'Appointment cancelled successfully',
+        appointment: appointmentResponse
+      });
+    } catch (error: any) {
+      console.error('Cancel appointment error:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to cancel appointment' 
+      });
+    }
+  });
+
   app.get('/api/patients/:id', authenticateToken, async (req, res) => {
     try {
       const { id } = req.params;
