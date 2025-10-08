@@ -723,13 +723,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Cancel the old appointment
-      await storage.updateAppointment(
-        appointmentToReschedule.id,
-        { status: 'cancelled' }
-      );
-
-      // Create a new appointment at the new time
+      // Create the new appointment first (before cancelling old one)
+      // This ensures patient always has an appointment even if cancellation fails
       const newAppointment = await storage.createAppointment({
         patientId: appointmentToReschedule.patientId,
         doctorId: appointmentToReschedule.doctorId,
@@ -738,6 +733,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'scheduled',
         notes: appointmentToReschedule.notes
       });
+
+      // Only cancel the old appointment after new one is successfully created
+      // If cancellation fails, cancel the new appointment to maintain consistency
+      try {
+        await storage.updateAppointment(
+          appointmentToReschedule.id,
+          { status: 'cancelled' }
+        );
+      } catch (cancelError) {
+        // Rollback: cancel the newly created appointment
+        await storage.updateAppointment(newAppointment.id, { status: 'cancelled' });
+        throw new Error('Failed to cancel original appointment. Reschedule aborted.');
+      }
 
       // Convert response time to South African timezone
       const appointmentResponse = {
