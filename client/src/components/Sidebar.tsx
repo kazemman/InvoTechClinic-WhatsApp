@@ -75,7 +75,7 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
             />
             <div>
               <h1 className="text-lg font-semibold text-foreground">InvoTech</h1>
-              <p className="text-sm text-muted-foreground">Clinic Management</p>
+              <p className="text-sm text-muted-foreground">Health Care System</p>
             </div>
           </div>
           {isMobile && (

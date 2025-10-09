@@ -594,7 +594,7 @@ export default function PublicPatientRegistration() {
       </div>
       <footer className="py-4">
         <p className="text-xs text-center text-muted-foreground">
-          © 2025 InvoTech Clinic Management. All rights reserved.
+          © 2025 InvoTech Solutions (Pty) Ltd. All rights reserved.
         </p>
       </footer>
     </div>

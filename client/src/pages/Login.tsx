@@ -70,9 +70,9 @@ export default function Login() {
                 className="w-16 h-16 object-contain"
               />
             </div>
-            <CardTitle className="text-2xl font-bold">InvoTech Clinic</CardTitle>
+            <CardTitle className="text-2xl font-bold">InvoTech Health Care System</CardTitle>
             <CardDescription>
-              Sign in to access the clinic management system
+              Sign in to access the health care management system
             </CardDescription>
           </CardHeader>
           

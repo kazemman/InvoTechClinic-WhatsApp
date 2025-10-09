@@ -10,7 +10,7 @@ app.use(express.urlencoded({ extended: false }));
 
 // Health check endpoint for deployment monitoring
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'InvoTech Clinic Management System' });
+  res.status(200).json({ status: 'ok', message: 'InvoTech Health Care System' });
 });
 
 app.use((req, res, next) => {

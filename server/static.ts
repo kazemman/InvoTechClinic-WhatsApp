@@ -20,7 +20,7 @@ export function serveStatic(app: Express) {
     const acceptsJson = req.accepts('json');
     
     if (!acceptsHtml || (acceptsJson && !acceptsHtml)) {
-      return res.status(200).json({ status: 'ok', message: 'InvoTech Clinic Management System' });
+      return res.status(200).json({ status: 'ok', message: 'InvoTech Health Care System' });
     }
     
     // Otherwise serve the frontend

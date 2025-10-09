@@ -39,7 +39,7 @@ export default function Layout({ children }: LayoutProps) {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-                <p className="text-sm text-muted-foreground">Welcome back, manage your clinic efficiently</p>
+                <p className="text-sm text-muted-foreground">Welcome back, manage your health care operations efficiently</p>
               </div>
             </div>
           </div>

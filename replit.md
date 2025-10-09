@@ -1,8 +1,8 @@
-# Clinic Management App - InvoTech
+# InvoTech Health Care System
 
 ## Overview
 
-This is a comprehensive clinic management application built for InvoTech. The system provides a complete solution for managing clinic operations including patient registration, appointment scheduling, check-ins, queue management, consultations, and business insights. The application supports role-based access control with three user roles: staff, admin, and doctor, each with specific permissions and functionality.
+This is a comprehensive health care management application built for InvoTech Solutions. The system provides a complete solution for managing health care operations including patient registration, appointment scheduling, check-ins, queue management, consultations, and business insights. The application supports role-based access control with three user roles: staff, admin, and doctor, each with specific permissions and functionality.
 
 The system is designed to streamline clinic workflow from patient registration through consultation completion, with real-time queue management and comprehensive reporting capabilities. It includes features for patient photo management, medical aid tracking, appointment conflict prevention, and revenue analytics.
 
