@@ -48,6 +48,12 @@ export default function Layout({ children }: LayoutProps) {
         <main className="flex-1 overflow-y-auto p-6">
           {children}
         </main>
+
+        <footer className="bg-card border-t border-border px-6 py-3">
+          <p className="text-xs text-center text-muted-foreground">
+            © 2025 InvoTech Clinic Management. All rights reserved.
+          </p>
+        </footer>
       </div>
     </div>
   );

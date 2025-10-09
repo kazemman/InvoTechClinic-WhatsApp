@@ -164,18 +164,25 @@ export default function PublicPatientRegistration() {
   // Show error if no token provided
   if (!token) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-8 px-4">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Invalid Registration Link</CardTitle>
-            <CardDescription>
-              This page requires a valid registration token. Please use the registration link provided to you.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-between py-8 px-4">
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="max-w-md w-full">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Invalid Registration Link</CardTitle>
+              <CardDescription>
+                This page requires a valid registration token. Please use the registration link provided to you.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+        <footer className="py-4">
+          <p className="text-xs text-center text-muted-foreground">
+            © 2025 InvoTech Clinic Management. All rights reserved.
+          </p>
+        </footer>
       </div>
     );
   }
@@ -183,18 +190,25 @@ export default function PublicPatientRegistration() {
   // Show loading while validating token
   if (isValidatingToken) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-8 px-4">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4 animate-pulse">
-              <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Validating Registration Link</CardTitle>
-            <CardDescription>
-              Please wait while we verify your registration link...
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-between py-8 px-4">
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="max-w-md w-full">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Validating Registration Link</CardTitle>
+              <CardDescription>
+                Please wait while we verify your registration link...
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+        <footer className="py-4">
+          <p className="text-xs text-center text-muted-foreground">
+            © 2025 InvoTech Clinic Management. All rights reserved.
+          </p>
+        </footer>
       </div>
     );
   }
@@ -204,31 +218,38 @@ export default function PublicPatientRegistration() {
     const errorMessage = (tokenValidation as any)?.message || "Failed to validate registration link. Please try again.";
     
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-8 px-4">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Registration Link Error</CardTitle>
-            <CardDescription className="text-red-600 dark:text-red-400 mt-2">
-              {errorMessage}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Please contact the clinic to request a new registration link.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-between py-8 px-4">
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="max-w-md w-full">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Registration Link Error</CardTitle>
+              <CardDescription className="text-red-600 dark:text-red-400 mt-2">
+                {errorMessage}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Please contact the clinic to request a new registration link.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        <footer className="py-4">
+          <p className="text-xs text-center text-muted-foreground">
+            © 2025 InvoTech Clinic Management. All rights reserved.
+          </p>
+        </footer>
       </div>
     );
   }
 
   // Show registration form if token is valid
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-between py-8 px-4">
+      <div className="max-w-2xl mx-auto flex-1">
         <Card>
           <CardHeader className="text-center">
             <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4">
@@ -550,6 +571,11 @@ export default function PublicPatientRegistration() {
           </CardContent>
         </Card>
       </div>
+      <footer className="py-4">
+        <p className="text-xs text-center text-muted-foreground">
+          © 2025 InvoTech Clinic Management. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 }

@@ -59,93 +59,101 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-20 h-20 flex items-center justify-center mb-4">
-            <img 
-              src={invoTechLogo} 
-              alt="InvoTech Logo" 
-              className="w-16 h-16 object-contain"
-            />
-          </div>
-          <CardTitle className="text-2xl font-bold">InvoTech Clinic</CardTitle>
-          <CardDescription>
-            Sign in to access the clinic management system
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="email"
-                        placeholder="Enter your email"
-                        autoComplete="username"
-                        data-testid="input-email"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+    <div className="min-h-screen bg-background flex flex-col justify-between p-4">
+      <div className="flex-1 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-20 h-20 flex items-center justify-center mb-4">
+              <img 
+                src={invoTechLogo} 
+                alt="InvoTech Logo" 
+                className="w-16 h-16 object-contain"
               />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <div className="relative">
+            </div>
+            <CardTitle className="text-2xl font-bold">InvoTech Clinic</CardTitle>
+            <CardDescription>
+              Sign in to access the clinic management system
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
                         <Input
                           {...field}
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="Enter your password"
-                          autoComplete="current-password"
-                          data-testid="input-password"
+                          type="email"
+                          placeholder="Enter your email"
+                          autoComplete="username"
+                          data-testid="input-email"
                         />
-                        <button
-                          type="button"
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          onClick={() => setShowPassword(!showPassword)}
-                          data-testid="button-toggle-password"
-                        >
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={loginMutation.isPending}
-                data-testid="button-login"
-              >
-                {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
-              </Button>
-            </form>
-          </Form>
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            {...field}
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Enter your password"
+                            autoComplete="current-password"
+                            data-testid="input-password"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowPassword(!showPassword)}
+                            data-testid="button-toggle-password"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-          <div className="text-center mt-4">
-            <button className="text-sm text-primary hover:text-primary/80" data-testid="link-forgot-password">
-              Forgot your password?
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={loginMutation.isPending}
+                  data-testid="button-login"
+                >
+                  {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
+                </Button>
+              </form>
+            </Form>
+
+            <div className="text-center mt-4">
+              <button className="text-sm text-primary hover:text-primary/80" data-testid="link-forgot-password">
+                Forgot your password?
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <footer className="py-4">
+        <p className="text-xs text-center text-muted-foreground">
+          © 2025 InvoTech Clinic Management. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 }
