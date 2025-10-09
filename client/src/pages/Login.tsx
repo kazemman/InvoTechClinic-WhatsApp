@@ -151,7 +151,14 @@ export default function Login() {
       
       <footer className="py-4">
         <p className="text-xs text-center text-muted-foreground">
-          © 2025 InvoTech Clinic Management. All rights reserved.
+          © 2025 InvoTech Solutions (Pty) Ltd. All rights reserved.
+        </p>
+        <p className="text-xs text-center text-muted-foreground mt-1">
+          <span className="hover:text-foreground cursor-pointer">Privacy Policy</span>
+          {" | "}
+          <span className="hover:text-foreground cursor-pointer">Terms of Service</span>
+          {" | "}
+          <span className="hover:text-foreground cursor-pointer">Support</span>
         </p>
       </footer>
     </div>
